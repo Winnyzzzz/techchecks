@@ -4,6 +4,7 @@ import { ImageUploader } from '@/components/ImageUploader';
 import { ProcessingStatus } from '@/components/ProcessingStatus';
 import { AccountTable } from '@/components/AccountTable';
 import { ExportButtons } from '@/components/ExportButtons';
+import { FailedImagesList } from '@/components/FailedImagesList';
 import { useDeviceId } from '@/hooks/useDeviceId';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useImageAnalyzer } from '@/hooks/useImageAnalyzer';
@@ -11,7 +12,7 @@ import { useImageAnalyzer } from '@/hooks/useImageAnalyzer';
 const Index = () => {
   const deviceId = useDeviceId();
   const { accounts, isLoading, addAccount, updateAccount, deleteAccount, clearAllAccounts } = useAccounts(deviceId);
-  const { processingState, analyzeImages } = useImageAnalyzer(addAccount);
+  const { processingState, analyzeImages, failedImages, removeFailedImage, clearFailedImages } = useImageAnalyzer(addAccount);
 
   return (
     <div className="min-h-screen bg-background">
@@ -61,6 +62,13 @@ const Index = () => {
             currentImageUrl={processingState.currentImageUrl}
           />
         )}
+
+        {/* Failed Images List */}
+        <FailedImagesList
+          failedImages={failedImages}
+          onRemove={removeFailedImage}
+          onClearAll={clearFailedImages}
+        />
 
         {/* Results Table */}
         <Card>
