@@ -1,0 +1,14 @@
+export interface ExtractedAccount {
+  id: string;
+  device_id: string;
+  full_name: string;
+  account_number: string;
+  status: 'pending' | 'verified' | 'error';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AIExtractionResult {
+  fullName: string;
+  accountNumber: string;
+}
