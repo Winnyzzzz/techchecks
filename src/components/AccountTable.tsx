@@ -29,6 +29,7 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
   const [editSender, setEditSender] = useState('');
   const [dragSourceId, setDragSourceId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const [swappedIds, setSwappedIds] = useState<string[]>([]);
 
   const filteredAccounts = accounts.filter(account =>
     account.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -92,6 +93,8 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
         const targetName = targetAccount.sender_name;
         onUpdate(targetAccount.id, targetAccount.full_name, targetAccount.account_number, targetAccount.referral_code, sourceName);
         onUpdate(dragSourceId, sourceAccount.full_name, sourceAccount.account_number, sourceAccount.referral_code, targetName);
+        setSwappedIds([targetAccount.id, dragSourceId]);
+        setTimeout(() => setSwappedIds([]), 1000);
         toast.success(`Đã hoán đổi họ tên "${sourceName}" và "${targetName}"`);
       }
     }
@@ -172,11 +175,15 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
                         onDragOver={(e) => handleDragOver(e, account.id)}
                         onDragLeave={handleDragLeave}
                         onDrop={(e) => handleDrop(e, account)}
-                        className={`cursor-grab active:cursor-grabbing px-2 py-1 rounded transition-colors select-none ${
+                        className={`cursor-grab active:cursor-grabbing px-2 py-1 rounded transition-all duration-300 select-none ${
                           dropTargetId === account.id && dragSourceId !== account.id
-                            ? 'bg-primary/20 ring-2 ring-primary/40'
+                            ? 'bg-primary/20 ring-2 ring-primary/40 scale-105'
                             : 'hover:bg-muted'
-                        } ${dragSourceId === account.id ? 'opacity-50' : ''}`}
+                        } ${dragSourceId === account.id ? 'opacity-50 scale-95' : ''} ${
+                          swappedIds.includes(account.id)
+                            ? 'bg-primary/15 text-primary font-semibold animate-scale-in ring-1 ring-primary/30'
+                            : ''
+                        }`}
                         title="Kéo để copy họ tên sang hàng khác"
                       >
                         {account.sender_name || '—'}
