@@ -42,7 +42,7 @@ export function useAccounts(deviceId: string) {
         .insert({
           device_id: deviceId,
           full_name: result.fullName,
-          account_number: result.accountNumber,
+          account_number: result.accountNumber.replace(/\s/g, ''),
           referral_code: result.referralCode || '',
           status: 'verified'
         })
@@ -63,7 +63,7 @@ export function useAccounts(deviceId: string) {
     try {
       const { error } = await supabase
         .from('extracted_accounts')
-        .update({ full_name: fullName, account_number: accountNumber, referral_code: referralCode })
+        .update({ full_name: fullName, account_number: accountNumber.replace(/\s/g, ''), referral_code: referralCode })
         .eq('id', id);
 
       if (error) throw error;
