@@ -10,34 +10,39 @@ interface ExportButtonsProps {
 }
 
 export function ExportButtons({ accounts, onClearAll }: ExportButtonsProps) {
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     if (accounts.length === 0) {
       toast.error('Không có dữ liệu để xuất');
       return;
     }
 
-    const data = accounts.map((account, index) => ({
-      'STT': index + 1,
-      'Tên đăng nhập': account.full_name,
-      'Số tài khoản': account.account_number,
-      'Mã giới thiệu': account.referral_code || '',
-      'Họ và tên (Nội dung)': account.sender_name || '',
-    }));
+    try {
+      // Fetch the template file
+      const response = await fetch('/templates/ft_batch_xlsx_2025_VIE.xlsx');
+      const arrayBuffer = await response.arrayBuffer();
+      const wb = XLSX.read(arrayBuffer, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
 
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Danh sách');
+      // Fill in data starting from row 2 (row 1 is header)
+      accounts.forEach((account, index) => {
+        const row = index + 2; // Excel rows are 1-indexed, row 1 is header
+        ws[`A${row}`] = { t: 'n', v: index + 1 }; // STT
+        ws[`B${row}`] = { t: 's', v: account.sender_name || account.full_name }; // Họ và Tên người nhận
+        ws[`C${row}`] = { t: 's', v: account.account_number }; // Số tài khoản
+        ws[`D${row}`] = { t: 'n', v: 5000 }; // Số tiền mặc định
+        ws[`E${row}`] = { t: 's', v: 'ck' }; // Nội dung chuyển tiền mặc định
+      });
 
-    ws['!cols'] = [
-      { wch: 5 },
-      { wch: 30 },
-      { wch: 25 },
-      { wch: 20 },
-      { wch: 30 },
-    ];
+      // Update the range to include all data rows
+      const lastRow = Math.max(accounts.length + 1, 201); // Keep at least the template rows
+      ws['!ref'] = `A1:F${lastRow}`;
 
-    XLSX.writeFile(wb, `danh-sach-tai-khoan-${new Date().toISOString().split('T')[0]}.xlsx`);
-    toast.success('Đã xuất file Excel thành công');
+      XLSX.writeFile(wb, `ft_batch_xlsx_${new Date().toISOString().split('T')[0]}.xlsx`);
+      toast.success('Đã xuất file Excel thành công');
+    } catch (error) {
+      console.error('Error exporting Excel:', error);
+      toast.error('Không thể xuất file Excel');
+    }
   };
 
   const copyToClipboard = async () => {
