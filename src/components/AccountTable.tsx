@@ -1,22 +1,5 @@
-import { useState } from 'react';
-import { Pencil, Trash2, Check, X, Search, GripVertical } from 'lucide-react';
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { useState, useRef } from 'react';
+import { Pencil, Trash2, Check, X, Search } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -29,142 +12,23 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ExtractedAccount } from '@/types/account';
+import { toast } from 'sonner';
 
 interface AccountTableProps {
   accounts: ExtractedAccount[];
   onUpdate: (id: string, fullName: string, accountNumber: string, referralCode: string, senderName: string) => void;
   onDelete: (id: string) => void;
-  onReorder?: (accounts: ExtractedAccount[]) => void;
 }
 
-function SortableRow({
-  account,
-  index,
-  editingId,
-  editName,
-  editAccount,
-  editReferral,
-  editSender,
-  setEditName,
-  setEditAccount,
-  setEditReferral,
-  setEditSender,
-  startEditing,
-  saveEdit,
-  cancelEdit,
-  onDelete,
-  getStatusBadge,
-}: {
-  account: ExtractedAccount;
-  index: number;
-  editingId: string | null;
-  editName: string;
-  editAccount: string;
-  editReferral: string;
-  editSender: string;
-  setEditName: (v: string) => void;
-  setEditAccount: (v: string) => void;
-  setEditReferral: (v: string) => void;
-  setEditSender: (v: string) => void;
-  startEditing: (account: ExtractedAccount) => void;
-  saveEdit: () => void;
-  cancelEdit: () => void;
-  onDelete: (id: string) => void;
-  getStatusBadge: (status: string) => JSX.Element;
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: account.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
-  return (
-    <TableRow ref={setNodeRef} style={style} className={isDragging ? 'bg-muted' : ''}>
-      <TableCell className="w-10 px-2">
-        <button
-          {...attributes}
-          {...listeners}
-          className="cursor-grab active:cursor-grabbing p-1 text-muted-foreground hover:text-foreground touch-none"
-        >
-          <GripVertical className="w-4 h-4" />
-        </button>
-      </TableCell>
-      <TableCell className="font-medium">{index + 1}</TableCell>
-      <TableCell>
-        {editingId === account.id ? (
-          <Input value={editName} onChange={(e) => setEditName(e.target.value)} className="h-8" />
-        ) : (
-          account.full_name
-        )}
-      </TableCell>
-      <TableCell className="font-mono">
-        {editingId === account.id ? (
-          <Input value={editAccount} onChange={(e) => setEditAccount(e.target.value)} className="h-8" />
-        ) : (
-          account.account_number
-        )}
-      </TableCell>
-      <TableCell className="font-mono">
-        {editingId === account.id ? (
-          <Input value={editReferral} onChange={(e) => setEditReferral(e.target.value)} className="h-8" />
-        ) : (
-          account.referral_code || '—'
-        )}
-      </TableCell>
-      <TableCell>
-        {editingId === account.id ? (
-          <Input value={editSender} onChange={(e) => setEditSender(e.target.value)} className="h-8" />
-        ) : (
-          account.sender_name || '—'
-        )}
-      </TableCell>
-      <TableCell>{getStatusBadge(account.status)}</TableCell>
-      <TableCell className="text-right">
-        {editingId === account.id ? (
-          <div className="flex gap-1 justify-end">
-            <Button size="icon" variant="ghost" onClick={saveEdit}>
-              <Check className="w-4 h-4 text-primary" />
-            </Button>
-            <Button size="icon" variant="ghost" onClick={cancelEdit}>
-              <X className="w-4 h-4 text-destructive" />
-            </Button>
-          </div>
-        ) : (
-          <div className="flex gap-1 justify-end">
-            <Button size="icon" variant="ghost" onClick={() => startEditing(account)}>
-              <Pencil className="w-4 h-4" />
-            </Button>
-            <Button size="icon" variant="ghost" onClick={() => onDelete(account.id)}>
-              <Trash2 className="w-4 h-4 text-destructive" />
-            </Button>
-          </div>
-        )}
-      </TableCell>
-    </TableRow>
-  );
-}
-
-export function AccountTable({ accounts, onUpdate, onDelete, onReorder }: AccountTableProps) {
+export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editAccount, setEditAccount] = useState('');
   const [editReferral, setEditReferral] = useState('');
   const [editSender, setEditSender] = useState('');
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  );
+  const [dragSourceId, setDragSourceId] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
   const filteredAccounts = accounts.filter(account =>
     account.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -172,8 +36,6 @@ export function AccountTable({ accounts, onUpdate, onDelete, onReorder }: Accoun
     account.referral_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
     account.sender_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  const isSearching = searchTerm.length > 0;
 
   const startEditing = (account: ExtractedAccount) => {
     setEditingId(account.id);
@@ -192,10 +54,6 @@ export function AccountTable({ accounts, onUpdate, onDelete, onReorder }: Accoun
 
   const cancelEdit = () => {
     setEditingId(null);
-    setEditName('');
-    setEditAccount('');
-    setEditReferral('');
-    setEditSender('');
   };
 
   const getStatusBadge = (status: string) => {
@@ -209,14 +67,36 @@ export function AccountTable({ accounts, onUpdate, onDelete, onReorder }: Accoun
     }
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
+  const handleDragStart = (e: React.DragEvent, account: ExtractedAccount) => {
+    setDragSourceId(account.id);
+    e.dataTransfer.setData('text/plain', account.sender_name || '');
+    e.dataTransfer.effectAllowed = 'copy';
+  };
 
-    const oldIndex = accounts.findIndex(a => a.id === active.id);
-    const newIndex = accounts.findIndex(a => a.id === over.id);
-    const reordered = arrayMove(accounts, oldIndex, newIndex);
-    onReorder?.(reordered);
+  const handleDragOver = (e: React.DragEvent, accountId: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setDropTargetId(accountId);
+  };
+
+  const handleDragLeave = () => {
+    setDropTargetId(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetAccount: ExtractedAccount) => {
+    e.preventDefault();
+    const name = e.dataTransfer.getData('text/plain');
+    if (name && dragSourceId !== targetAccount.id) {
+      onUpdate(targetAccount.id, targetAccount.full_name, targetAccount.account_number, targetAccount.referral_code, name);
+      toast.success(`Đã cập nhật họ tên cho hàng "${targetAccount.full_name}"`);
+    }
+    setDragSourceId(null);
+    setDropTargetId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDragSourceId(null);
+    setDropTargetId(null);
   };
 
   return (
@@ -232,55 +112,99 @@ export function AccountTable({ accounts, onUpdate, onDelete, onReorder }: Accoun
       </div>
 
       <div className="border rounded-lg overflow-hidden">
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <Table>
-            <TableHeader>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-12">STT</TableHead>
+              <TableHead>Tên đăng nhập</TableHead>
+              <TableHead>Số tài khoản</TableHead>
+              <TableHead>Mã giới thiệu</TableHead>
+              <TableHead>Họ và tên (Nội dung)</TableHead>
+              <TableHead className="w-32">Trạng thái</TableHead>
+              <TableHead className="w-24 text-right">Thao tác</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredAccounts.length === 0 ? (
               <TableRow>
-                <TableHead className="w-10"></TableHead>
-                <TableHead className="w-12">STT</TableHead>
-                <TableHead>Tên đăng nhập</TableHead>
-                <TableHead>Số tài khoản</TableHead>
-                <TableHead>Mã giới thiệu</TableHead>
-                <TableHead>Họ và tên (Nội dung)</TableHead>
-                <TableHead className="w-32">Trạng thái</TableHead>
-                <TableHead className="w-24 text-right">Thao tác</TableHead>
+                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                  {searchTerm ? 'Không tìm thấy kết quả' : 'Chưa có dữ liệu. Tải ảnh lên để bắt đầu.'}
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredAccounts.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                    {searchTerm ? 'Không tìm thấy kết quả' : 'Chưa có dữ liệu. Tải ảnh lên để bắt đầu.'}
+            ) : (
+              filteredAccounts.map((account, index) => (
+                <TableRow key={account.id}>
+                  <TableCell className="font-medium">{index + 1}</TableCell>
+                  <TableCell>
+                    {editingId === account.id ? (
+                      <Input value={editName} onChange={(e) => setEditName(e.target.value)} className="h-8" />
+                    ) : (
+                      account.full_name
+                    )}
+                  </TableCell>
+                  <TableCell className="font-mono">
+                    {editingId === account.id ? (
+                      <Input value={editAccount} onChange={(e) => setEditAccount(e.target.value)} className="h-8" />
+                    ) : (
+                      account.account_number
+                    )}
+                  </TableCell>
+                  <TableCell className="font-mono">
+                    {editingId === account.id ? (
+                      <Input value={editReferral} onChange={(e) => setEditReferral(e.target.value)} className="h-8" />
+                    ) : (
+                      account.referral_code || '—'
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {editingId === account.id ? (
+                      <Input value={editSender} onChange={(e) => setEditSender(e.target.value)} className="h-8" />
+                    ) : (
+                      <div
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, account)}
+                        onDragEnd={handleDragEnd}
+                        onDragOver={(e) => handleDragOver(e, account.id)}
+                        onDragLeave={handleDragLeave}
+                        onDrop={(e) => handleDrop(e, account)}
+                        className={`cursor-grab active:cursor-grabbing px-2 py-1 rounded transition-colors select-none ${
+                          dropTargetId === account.id && dragSourceId !== account.id
+                            ? 'bg-primary/20 ring-2 ring-primary/40'
+                            : 'hover:bg-muted'
+                        } ${dragSourceId === account.id ? 'opacity-50' : ''}`}
+                        title="Kéo để copy họ tên sang hàng khác"
+                      >
+                        {account.sender_name || '—'}
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell>{getStatusBadge(account.status)}</TableCell>
+                  <TableCell className="text-right">
+                    {editingId === account.id ? (
+                      <div className="flex gap-1 justify-end">
+                        <Button size="icon" variant="ghost" onClick={saveEdit}>
+                          <Check className="w-4 h-4 text-primary" />
+                        </Button>
+                        <Button size="icon" variant="ghost" onClick={cancelEdit}>
+                          <X className="w-4 h-4 text-destructive" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-1 justify-end">
+                        <Button size="icon" variant="ghost" onClick={() => startEditing(account)}>
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" onClick={() => onDelete(account.id)}>
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      </div>
+                    )}
                   </TableCell>
                 </TableRow>
-              ) : (
-                <SortableContext items={filteredAccounts.map(a => a.id)} strategy={verticalListSortingStrategy} disabled={isSearching}>
-                  {filteredAccounts.map((account, index) => (
-                    <SortableRow
-                      key={account.id}
-                      account={account}
-                      index={index}
-                      editingId={editingId}
-                      editName={editName}
-                      editAccount={editAccount}
-                      editReferral={editReferral}
-                      editSender={editSender}
-                      setEditName={setEditName}
-                      setEditAccount={setEditAccount}
-                      setEditReferral={setEditReferral}
-                      setEditSender={setEditSender}
-                      startEditing={startEditing}
-                      saveEdit={saveEdit}
-                      cancelEdit={cancelEdit}
-                      onDelete={onDelete}
-                      getStatusBadge={getStatusBadge}
-                    />
-                  ))}
-                </SortableContext>
-              )}
-            </TableBody>
-          </Table>
-        </DndContext>
+              ))
+            )}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );
