@@ -1,0 +1,1 @@
+ALTER TABLE public.extracted_accounts ADD COLUMN referral_code text NOT NULL DEFAULT '';

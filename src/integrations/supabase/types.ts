@@ -21,6 +21,7 @@ export type Database = {
           device_id: string
           full_name: string
           id: string
+          referral_code: string
           status: string
           updated_at: string
         }
@@ -30,6 +31,7 @@ export type Database = {
           device_id: string
           full_name: string
           id?: string
+          referral_code?: string
           status?: string
           updated_at?: string
         }
@@ -39,6 +41,7 @@ export type Database = {
           device_id?: string
           full_name?: string
           id?: string
+          referral_code?: string
           status?: string
           updated_at?: string
         }

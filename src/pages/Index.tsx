@@ -55,7 +55,7 @@ const Index = () => {
               <div>
                 <h1 className="text-xl font-bold text-foreground">Trích xuất Tài khoản</h1>
                 <p className="text-sm text-muted-foreground">
-                  Tải ảnh lên để AI trích xuất họ tên và số tài khoản
+                  Tải ảnh lên để AI trích xuất tên đăng nhập, số tài khoản và mã giới thiệu
                 </p>
               </div>
             </div>

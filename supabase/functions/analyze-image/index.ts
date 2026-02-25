@@ -47,20 +47,21 @@ serve(async (req) => {
 
 Nhiệm vụ của bạn:
 1. Phân tích hình ảnh được cung cấp
-2. Trích xuất HỌ VÀ TÊN và SỐ TÀI KHOẢN NGÂN HÀNG từ hình ảnh
+2. Trích xuất TÊN ĐĂNG NHẬP, SỐ TÀI KHOẢN NGÂN HÀNG và MÃ GIỚI THIỆU từ hình ảnh
 3. Trả về kết quả dưới dạng JSON
 
 Quy tắc:
 - Chỉ trích xuất thông tin rõ ràng, chính xác
-- Nếu có nhiều tên/số tài khoản, trích xuất tất cả
-- Họ tên phải là tên người Việt Nam hoặc tên đầy đủ
+- Nếu có nhiều tài khoản, trích xuất tất cả
+- Tên đăng nhập (username) là tên hiển thị hoặc tên người dùng
 - Số tài khoản thường là dãy số từ 8-20 chữ số
+- Mã giới thiệu (referral code) là mã dùng để mời người khác
 - Nếu không tìm thấy thông tin, trả về mảng rỗng
 
 Trả về JSON theo format:
 {
   "results": [
-    {"fullName": "NGUYEN VAN A", "accountNumber": "1234567890123"}
+    {"fullName": "NGUYEN VAN A", "accountNumber": "1234567890123", "referralCode": "ABC123"}
   ]
 }`
           },
@@ -69,7 +70,7 @@ Trả về JSON theo format:
             content: [
               {
                 type: "text",
-                text: "Hãy phân tích ảnh này và trích xuất họ tên và số tài khoản ngân hàng. Trả về kết quả dưới dạng JSON."
+                text: "Hãy phân tích ảnh này và trích xuất tên đăng nhập, số tài khoản ngân hàng và mã giới thiệu. Trả về kết quả dưới dạng JSON."
               },
               {
                 type: "image_url",

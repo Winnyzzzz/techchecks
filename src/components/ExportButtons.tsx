@@ -18,8 +18,9 @@ export function ExportButtons({ accounts, onClearAll }: ExportButtonsProps) {
 
     const data = accounts.map((account, index) => ({
       'STT': index + 1,
-      'Họ và tên': account.full_name,
+      'Tên đăng nhập': account.full_name,
       'Số tài khoản': account.account_number,
+      'Mã giới thiệu': account.referral_code || '',
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
@@ -31,6 +32,7 @@ export function ExportButtons({ accounts, onClearAll }: ExportButtonsProps) {
       { wch: 5 },
       { wch: 30 },
       { wch: 25 },
+      { wch: 20 },
     ];
 
     XLSX.writeFile(wb, `danh-sach-tai-khoan-${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -44,7 +46,7 @@ export function ExportButtons({ accounts, onClearAll }: ExportButtonsProps) {
     }
 
     const text = accounts
-      .map((account, index) => `${index + 1}. ${account.full_name} - ${account.account_number}`)
+      .map((account, index) => `${index + 1}. ${account.full_name} - ${account.account_number} - ${account.referral_code || ''}`)
       .join('\n');
 
     try {

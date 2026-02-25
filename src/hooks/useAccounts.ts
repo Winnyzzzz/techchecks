@@ -43,6 +43,7 @@ export function useAccounts(deviceId: string) {
           device_id: deviceId,
           full_name: result.fullName,
           account_number: result.accountNumber,
+          referral_code: result.referralCode || '',
           status: 'verified'
         })
         .select()
@@ -58,17 +59,17 @@ export function useAccounts(deviceId: string) {
   }, [deviceId]);
 
   // Update account
-  const updateAccount = useCallback(async (id: string, fullName: string, accountNumber: string) => {
+  const updateAccount = useCallback(async (id: string, fullName: string, accountNumber: string, referralCode: string) => {
     try {
       const { error } = await supabase
         .from('extracted_accounts')
-        .update({ full_name: fullName, account_number: accountNumber })
+        .update({ full_name: fullName, account_number: accountNumber, referral_code: referralCode })
         .eq('id', id);
 
       if (error) throw error;
       
       setAccounts(prev => prev.map(acc => 
-        acc.id === id ? { ...acc, full_name: fullName, account_number: accountNumber } : acc
+        acc.id === id ? { ...acc, full_name: fullName, account_number: accountNumber, referral_code: referralCode } : acc
       ));
       toast.success('Đã cập nhật thành công');
     } catch (error) {
