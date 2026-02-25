@@ -43,30 +43,32 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `Bạn là một AI chuyên trích xuất thông tin từ ảnh chụp màn hình giao dịch ngân hàng, biên lai, hoặc các tài liệu tài chính.
+            content: `Bạn là một AI chuyên trích xuất thông tin từ ảnh chụp màn hình giao dịch ngân hàng, biên lai, mã QR, hoặc các tài liệu tài chính.
 
 Nhiệm vụ của bạn:
 1. Phân tích hình ảnh được cung cấp
 2. Trích xuất các thông tin sau:
-   - TÊN ĐĂNG NHẬP (fullName): tên tài khoản người nhận tiền (hiển thị nổi bật trên biên lai, thường là tên viết hoa không dấu)
-   - SỐ TÀI KHOẢN NGÂN HÀNG (accountNumber): dãy số tài khoản (loại bỏ tất cả dấu cách)
-   - MÃ GIỚI THIỆU (referralCode): mã dùng để mời người khác (nếu có)
-   - HỌ VÀ TÊN (senderName): Đây là trường QUAN TRỌNG NHẤT. Bất kỳ tên người nào tìm thấy trong ảnh (từ dòng "Nội dung", "Lời nhắn", tên người gửi, hoặc bất kỳ tên nào khác) đều phải đưa vào trường senderName. Ví dụ: "Duong Hoang Long chuyen tien QR" thì senderName = "Duong Hoang Long"
-3. Trả về kết quả dưới dạng JSON
+   - fullName: tên tài khoản người nhận tiền (hiển thị nổi bật trên biên lai/QR, thường viết hoa không dấu)
+   - accountNumber: dãy số tài khoản (loại bỏ tất cả dấu cách)
+   - referralCode: mã giới thiệu (nếu có, nếu không thì "")
+   - senderName: tên người gửi/chuyển tiền, CHỈ lấy từ dòng "Nội dung" hoặc "Lời nhắn"
 
-Quy tắc:
-- Chỉ trích xuất thông tin rõ ràng, chính xác
-- Nếu có nhiều tài khoản, trích xuất tất cả
-- Số tài khoản: loại bỏ tất cả dấu cách, chỉ giữ lại số
-- senderName: lấy từ dòng "Nội dung", "Lời nhắn", hoặc bất kỳ nơi nào có tên người. Chỉ lấy phần tên người (bỏ các từ như "chuyen tien", "QR", "thanh toan", v.v.). Nếu phát hiện tên người ở bất kỳ đâu trong ảnh mà không thuộc fullName, hãy đưa vào senderName.
-- fullName: CHỈ là tên tài khoản ngân hàng người nhận (thường viết hoa, không dấu). KHÔNG đưa tên người gửi vào đây.
-- Nếu không tìm thấy thông tin, trả về mảng rỗng
+QUY TẮC BẮT BUỘC:
+1. senderName CHỈ được lấy từ dòng "Nội dung" hoặc "Lời nhắn" trong biên lai. Nếu ảnh KHÔNG có dòng "Nội dung"/"Lời nhắn" (ví dụ: ảnh mã QR, ảnh thông tin tài khoản), thì senderName PHẢI là "" (chuỗi rỗng).
+2. TUYỆT ĐỐI KHÔNG BAO GIỜ copy giá trị fullName sang senderName. Hai trường này PHẢI độc lập.
+3. fullName là tên người nhận hiển thị trên biên lai/QR.
+4. Số tài khoản: loại bỏ tất cả dấu cách, chỉ giữ lại số.
+5. Nếu không tìm thấy thông tin, trả về mảng rỗng.
+
+Ví dụ 1 - Ảnh mã QR ngân hàng (không có nội dung chuyển tiền):
+{"fullName": "NGUYEN VAN A", "accountNumber": "1234567890", "referralCode": "", "senderName": ""}
+
+Ví dụ 2 - Biên lai chuyển tiền có nội dung "Duong Hoang Long chuyen tien QR":
+{"fullName": "NGUYEN VAN A", "accountNumber": "1234567890", "referralCode": "", "senderName": "Duong Hoang Long"}
 
 Trả về JSON theo format:
 {
-  "results": [
-    {"fullName": "NGUYEN VAN A", "accountNumber": "1234567890123", "referralCode": "ABC123", "senderName": "TRAN VAN B"}
-  ]
+  "results": [...]
 }`
           },
           {
