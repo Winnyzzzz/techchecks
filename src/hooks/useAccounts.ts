@@ -101,10 +101,6 @@ export function useAccounts(deviceId: string) {
     }
   }, [deviceId]);
 
-  const reorderAccounts = useCallback((reordered: ExtractedAccount[]) => {
-    setAccounts(reordered);
-  }, []);
-
   return {
     accounts,
     isLoading,
@@ -112,6 +108,5 @@ export function useAccounts(deviceId: string) {
     updateAccount,
     deleteAccount,
     clearAllAccounts,
-    reorderAccounts,
   };
 }
