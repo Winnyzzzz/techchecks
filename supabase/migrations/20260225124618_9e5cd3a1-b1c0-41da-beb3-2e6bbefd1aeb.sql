@@ -1,0 +1,1 @@
+ALTER TABLE public.extracted_accounts ADD COLUMN sender_name text NOT NULL DEFAULT '';

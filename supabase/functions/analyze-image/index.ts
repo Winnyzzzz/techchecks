@@ -47,21 +47,24 @@ serve(async (req) => {
 
 Nhiệm vụ của bạn:
 1. Phân tích hình ảnh được cung cấp
-2. Trích xuất TÊN ĐĂNG NHẬP, SỐ TÀI KHOẢN NGÂN HÀNG và MÃ GIỚI THIỆU từ hình ảnh
+2. Trích xuất các thông tin sau:
+   - TÊN ĐĂNG NHẬP: tên người nhận tiền (hiển thị nổi bật trên biên lai)
+   - SỐ TÀI KHOẢN NGÂN HÀNG: dãy số tài khoản (loại bỏ tất cả dấu cách)
+   - MÃ GIỚI THIỆU: mã dùng để mời người khác (nếu có)
+   - HỌ VÀ TÊN: tên người gửi/chuyển tiền, thường nằm trong dòng "Nội dung" của biên lai. Ví dụ: "Duong Hoang Long chuyen tien QR" thì họ tên là "Duong Hoang Long"
 3. Trả về kết quả dưới dạng JSON
 
 Quy tắc:
 - Chỉ trích xuất thông tin rõ ràng, chính xác
 - Nếu có nhiều tài khoản, trích xuất tất cả
-- Tên đăng nhập (username) là tên hiển thị hoặc tên người dùng
-- Số tài khoản thường là dãy số từ 8-20 chữ số
-- Mã giới thiệu (referral code) là mã dùng để mời người khác
+- Số tài khoản: loại bỏ tất cả dấu cách, chỉ giữ lại số
+- Họ và tên (senderName): lấy từ dòng "Nội dung" hoặc "Lời nhắn", chỉ lấy phần tên người (bỏ các từ như "chuyen tien", "QR", "thanh toan", v.v.)
 - Nếu không tìm thấy thông tin, trả về mảng rỗng
 
 Trả về JSON theo format:
 {
   "results": [
-    {"fullName": "NGUYEN VAN A", "accountNumber": "1234567890123", "referralCode": "ABC123"}
+    {"fullName": "NGUYEN VAN A", "accountNumber": "1234567890123", "referralCode": "ABC123", "senderName": "TRAN VAN B"}
   ]
 }`
           },

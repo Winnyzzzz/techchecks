@@ -15,7 +15,7 @@ import { ExtractedAccount } from '@/types/account';
 
 interface AccountTableProps {
   accounts: ExtractedAccount[];
-  onUpdate: (id: string, fullName: string, accountNumber: string, referralCode: string) => void;
+  onUpdate: (id: string, fullName: string, accountNumber: string, referralCode: string, senderName: string) => void;
   onDelete: (id: string) => void;
 }
 
@@ -25,11 +25,13 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
   const [editName, setEditName] = useState('');
   const [editAccount, setEditAccount] = useState('');
   const [editReferral, setEditReferral] = useState('');
+  const [editSender, setEditSender] = useState('');
 
   const filteredAccounts = accounts.filter(account =>
     account.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     account.account_number.includes(searchTerm) ||
-    account.referral_code.toLowerCase().includes(searchTerm.toLowerCase())
+    account.referral_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    account.sender_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const startEditing = (account: ExtractedAccount) => {
@@ -37,11 +39,12 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
     setEditName(account.full_name);
     setEditAccount(account.account_number);
     setEditReferral(account.referral_code);
+    setEditSender(account.sender_name);
   };
 
   const saveEdit = () => {
     if (editingId && editName.trim() && editAccount.trim()) {
-      onUpdate(editingId, editName.trim(), editAccount.trim(), editReferral.trim());
+      onUpdate(editingId, editName.trim(), editAccount.trim(), editReferral.trim(), editSender.trim());
       setEditingId(null);
     }
   };
@@ -51,6 +54,7 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
     setEditName('');
     setEditAccount('');
     setEditReferral('');
+    setEditSender('');
   };
 
   const getStatusBadge = (status: string) => {
@@ -69,7 +73,7 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
-          placeholder="Tìm kiếm theo tên, số tài khoản hoặc mã giới thiệu..."
+          placeholder="Tìm kiếm theo tên, số tài khoản, mã giới thiệu hoặc họ tên..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="pl-10"
@@ -84,6 +88,7 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
               <TableHead>Tên đăng nhập</TableHead>
               <TableHead>Số tài khoản</TableHead>
               <TableHead>Mã giới thiệu</TableHead>
+              <TableHead>Họ và tên (Nội dung)</TableHead>
               <TableHead className="w-32">Trạng thái</TableHead>
               <TableHead className="w-24 text-right">Thao tác</TableHead>
             </TableRow>
@@ -91,7 +96,7 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
           <TableBody>
             {filteredAccounts.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                   {searchTerm ? 'Không tìm thấy kết quả' : 'Chưa có dữ liệu. Tải ảnh lên để bắt đầu.'}
                 </TableCell>
               </TableRow>
@@ -130,6 +135,17 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
                       />
                     ) : (
                       account.referral_code || '—'
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {editingId === account.id ? (
+                      <Input
+                        value={editSender}
+                        onChange={(e) => setEditSender(e.target.value)}
+                        className="h-8"
+                      />
+                    ) : (
+                      account.sender_name || '—'
                     )}
                   </TableCell>
                   <TableCell>{getStatusBadge(account.status)}</TableCell>
