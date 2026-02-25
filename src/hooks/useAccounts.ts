@@ -7,17 +7,14 @@ export function useAccounts(deviceId: string) {
   const [accounts, setAccounts] = useState<ExtractedAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch accounts for this device
   const fetchAccounts = useCallback(async () => {
     if (!deviceId) return;
-
     try {
       const { data, error } = await supabase
         .from('extracted_accounts')
         .select('*')
         .eq('device_id', deviceId)
         .order('created_at', { ascending: false });
-
       if (error) throw error;
       setAccounts((data || []) as ExtractedAccount[]);
     } catch (error) {
@@ -32,10 +29,8 @@ export function useAccounts(deviceId: string) {
     fetchAccounts();
   }, [fetchAccounts]);
 
-  // Add new account
   const addAccount = useCallback(async (result: AIExtractionResult): Promise<boolean> => {
     if (!deviceId) return false;
-
     try {
       const { data, error } = await supabase
         .from('extracted_accounts')
@@ -44,11 +39,11 @@ export function useAccounts(deviceId: string) {
           full_name: result.fullName,
           account_number: result.accountNumber.replace(/\s/g, ''),
           referral_code: result.referralCode || '',
+          sender_name: result.senderName || '',
           status: 'verified'
         })
         .select()
         .single();
-
       if (error) throw error;
       setAccounts(prev => [data as ExtractedAccount, ...prev]);
       return true;
@@ -58,18 +53,15 @@ export function useAccounts(deviceId: string) {
     }
   }, [deviceId]);
 
-  // Update account
-  const updateAccount = useCallback(async (id: string, fullName: string, accountNumber: string, referralCode: string) => {
+  const updateAccount = useCallback(async (id: string, fullName: string, accountNumber: string, referralCode: string, senderName: string) => {
     try {
       const { error } = await supabase
         .from('extracted_accounts')
-        .update({ full_name: fullName, account_number: accountNumber.replace(/\s/g, ''), referral_code: referralCode })
+        .update({ full_name: fullName, account_number: accountNumber.replace(/\s/g, ''), referral_code: referralCode, sender_name: senderName })
         .eq('id', id);
-
       if (error) throw error;
-      
-      setAccounts(prev => prev.map(acc => 
-        acc.id === id ? { ...acc, full_name: fullName, account_number: accountNumber, referral_code: referralCode } : acc
+      setAccounts(prev => prev.map(acc =>
+        acc.id === id ? { ...acc, full_name: fullName, account_number: accountNumber, referral_code: referralCode, sender_name: senderName } : acc
       ));
       toast.success('Đã cập nhật thành công');
     } catch (error) {
@@ -78,16 +70,13 @@ export function useAccounts(deviceId: string) {
     }
   }, []);
 
-  // Delete account
   const deleteAccount = useCallback(async (id: string) => {
     try {
       const { error } = await supabase
         .from('extracted_accounts')
         .delete()
         .eq('id', id);
-
       if (error) throw error;
-      
       setAccounts(prev => prev.filter(acc => acc.id !== id));
       toast.success('Đã xóa thành công');
     } catch (error) {
@@ -96,18 +85,14 @@ export function useAccounts(deviceId: string) {
     }
   }, []);
 
-  // Clear all accounts
   const clearAllAccounts = useCallback(async () => {
     if (!deviceId) return;
-
     try {
       const { error } = await supabase
         .from('extracted_accounts')
         .delete()
         .eq('device_id', deviceId);
-
       if (error) throw error;
-      
       setAccounts([]);
       toast.success('Đã xóa tất cả');
     } catch (error) {

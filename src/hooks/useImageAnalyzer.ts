@@ -52,7 +52,6 @@ export function useImageAnalyzer(onResult: (result: AIExtractionResult) => Promi
   const analyzeImages = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
 
-    // Clear previous failed images
     clearFailedImages();
 
     setProcessingState({
@@ -94,8 +93,9 @@ export function useImageAnalyzer(onResult: (result: AIExtractionResult) => Promi
         let foundAccount = false;
         if (data.results && Array.isArray(data.results)) {
           for (const result of data.results) {
-          if (result.fullName && result.accountNumber) {
-            result.referralCode = result.referralCode || '';
+            if (result.fullName && result.accountNumber) {
+              result.referralCode = result.referralCode || '';
+              result.senderName = result.senderName || '';
               const success = await onResult(result);
               if (success) {
                 successCount++;
@@ -105,7 +105,6 @@ export function useImageAnalyzer(onResult: (result: AIExtractionResult) => Promi
           }
         }
 
-        // If no account found in this image, mark as failed
         if (!foundAccount) {
           newFailedImages.push({
             fileName: file.name,

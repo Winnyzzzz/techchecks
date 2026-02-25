@@ -21,18 +21,19 @@ export function ExportButtons({ accounts, onClearAll }: ExportButtonsProps) {
       'Tên đăng nhập': account.full_name,
       'Số tài khoản': account.account_number,
       'Mã giới thiệu': account.referral_code || '',
+      'Họ và tên (Nội dung)': account.sender_name || '',
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Danh sách');
 
-    // Set column widths
     ws['!cols'] = [
       { wch: 5 },
       { wch: 30 },
       { wch: 25 },
       { wch: 20 },
+      { wch: 30 },
     ];
 
     XLSX.writeFile(wb, `danh-sach-tai-khoan-${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -46,7 +47,7 @@ export function ExportButtons({ accounts, onClearAll }: ExportButtonsProps) {
     }
 
     const text = accounts
-      .map((account, index) => `${index + 1}. ${account.full_name} - ${account.account_number} - ${account.referral_code || ''}`)
+      .map((account, index) => `${index + 1}. ${account.full_name} - ${account.account_number} - ${account.referral_code || ''} - ${account.sender_name || ''}`)
       .join('\n');
 
     try {
