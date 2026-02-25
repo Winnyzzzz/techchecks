@@ -48,17 +48,18 @@ serve(async (req) => {
 Nhiệm vụ của bạn:
 1. Phân tích hình ảnh được cung cấp
 2. Trích xuất các thông tin sau:
-   - TÊN ĐĂNG NHẬP: tên người nhận tiền (hiển thị nổi bật trên biên lai)
-   - SỐ TÀI KHOẢN NGÂN HÀNG: dãy số tài khoản (loại bỏ tất cả dấu cách)
-   - MÃ GIỚI THIỆU: mã dùng để mời người khác (nếu có)
-   - HỌ VÀ TÊN: tên người gửi/chuyển tiền, thường nằm trong dòng "Nội dung" của biên lai. Ví dụ: "Duong Hoang Long chuyen tien QR" thì họ tên là "Duong Hoang Long"
+   - TÊN ĐĂNG NHẬP (fullName): tên tài khoản người nhận tiền (hiển thị nổi bật trên biên lai, thường là tên viết hoa không dấu)
+   - SỐ TÀI KHOẢN NGÂN HÀNG (accountNumber): dãy số tài khoản (loại bỏ tất cả dấu cách)
+   - MÃ GIỚI THIỆU (referralCode): mã dùng để mời người khác (nếu có)
+   - HỌ VÀ TÊN (senderName): Đây là trường QUAN TRỌNG NHẤT. Bất kỳ tên người nào tìm thấy trong ảnh (từ dòng "Nội dung", "Lời nhắn", tên người gửi, hoặc bất kỳ tên nào khác) đều phải đưa vào trường senderName. Ví dụ: "Duong Hoang Long chuyen tien QR" thì senderName = "Duong Hoang Long"
 3. Trả về kết quả dưới dạng JSON
 
 Quy tắc:
 - Chỉ trích xuất thông tin rõ ràng, chính xác
 - Nếu có nhiều tài khoản, trích xuất tất cả
 - Số tài khoản: loại bỏ tất cả dấu cách, chỉ giữ lại số
-- Họ và tên (senderName): lấy từ dòng "Nội dung" hoặc "Lời nhắn", chỉ lấy phần tên người (bỏ các từ như "chuyen tien", "QR", "thanh toan", v.v.)
+- senderName: lấy từ dòng "Nội dung", "Lời nhắn", hoặc bất kỳ nơi nào có tên người. Chỉ lấy phần tên người (bỏ các từ như "chuyen tien", "QR", "thanh toan", v.v.). Nếu phát hiện tên người ở bất kỳ đâu trong ảnh mà không thuộc fullName, hãy đưa vào senderName.
+- fullName: CHỈ là tên tài khoản ngân hàng người nhận (thường viết hoa, không dấu). KHÔNG đưa tên người gửi vào đây.
 - Nếu không tìm thấy thông tin, trả về mảng rỗng
 
 Trả về JSON theo format:
