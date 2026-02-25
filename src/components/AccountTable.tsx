@@ -85,10 +85,15 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
 
   const handleDrop = (e: React.DragEvent, targetAccount: ExtractedAccount) => {
     e.preventDefault();
-    const name = e.dataTransfer.getData('text/plain');
-    if (name && dragSourceId !== targetAccount.id) {
-      onUpdate(targetAccount.id, targetAccount.full_name, targetAccount.account_number, targetAccount.referral_code, name);
-      toast.success(`Đã cập nhật họ tên cho hàng "${targetAccount.full_name}"`);
+    if (dragSourceId && dragSourceId !== targetAccount.id) {
+      const sourceAccount = accounts.find(a => a.id === dragSourceId);
+      if (sourceAccount) {
+        const sourceName = sourceAccount.sender_name;
+        const targetName = targetAccount.sender_name;
+        onUpdate(targetAccount.id, targetAccount.full_name, targetAccount.account_number, targetAccount.referral_code, sourceName);
+        onUpdate(dragSourceId, sourceAccount.full_name, sourceAccount.account_number, sourceAccount.referral_code, targetName);
+        toast.success(`Đã hoán đổi họ tên "${sourceName}" và "${targetName}"`);
+      }
     }
     setDragSourceId(null);
     setDropTargetId(null);
