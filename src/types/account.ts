@@ -3,6 +3,7 @@ export interface ExtractedAccount {
   device_id: string;
   full_name: string;
   account_number: string;
+  referral_code: string;
   status: 'pending' | 'verified' | 'error';
   created_at: string;
   updated_at: string;
@@ -11,4 +12,5 @@ export interface ExtractedAccount {
 export interface AIExtractionResult {
   fullName: string;
   accountNumber: string;
+  referralCode: string;
 }

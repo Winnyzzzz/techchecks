@@ -15,7 +15,7 @@ import { ExtractedAccount } from '@/types/account';
 
 interface AccountTableProps {
   accounts: ExtractedAccount[];
-  onUpdate: (id: string, fullName: string, accountNumber: string) => void;
+  onUpdate: (id: string, fullName: string, accountNumber: string, referralCode: string) => void;
   onDelete: (id: string) => void;
 }
 
@@ -24,21 +24,24 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editAccount, setEditAccount] = useState('');
+  const [editReferral, setEditReferral] = useState('');
 
   const filteredAccounts = accounts.filter(account =>
     account.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    account.account_number.includes(searchTerm)
+    account.account_number.includes(searchTerm) ||
+    account.referral_code.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const startEditing = (account: ExtractedAccount) => {
     setEditingId(account.id);
     setEditName(account.full_name);
     setEditAccount(account.account_number);
+    setEditReferral(account.referral_code);
   };
 
   const saveEdit = () => {
     if (editingId && editName.trim() && editAccount.trim()) {
-      onUpdate(editingId, editName.trim(), editAccount.trim());
+      onUpdate(editingId, editName.trim(), editAccount.trim(), editReferral.trim());
       setEditingId(null);
     }
   };
@@ -47,6 +50,7 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
     setEditingId(null);
     setEditName('');
     setEditAccount('');
+    setEditReferral('');
   };
 
   const getStatusBadge = (status: string) => {
@@ -65,7 +69,7 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
-          placeholder="Tìm kiếm theo tên hoặc số tài khoản..."
+          placeholder="Tìm kiếm theo tên, số tài khoản hoặc mã giới thiệu..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="pl-10"
@@ -77,8 +81,9 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
           <TableHeader>
             <TableRow>
               <TableHead className="w-12">STT</TableHead>
-              <TableHead>Họ và tên</TableHead>
+              <TableHead>Tên đăng nhập</TableHead>
               <TableHead>Số tài khoản</TableHead>
+              <TableHead>Mã giới thiệu</TableHead>
               <TableHead className="w-32">Trạng thái</TableHead>
               <TableHead className="w-24 text-right">Thao tác</TableHead>
             </TableRow>
@@ -86,7 +91,7 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
           <TableBody>
             {filteredAccounts.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                   {searchTerm ? 'Không tìm thấy kết quả' : 'Chưa có dữ liệu. Tải ảnh lên để bắt đầu.'}
                 </TableCell>
               </TableRow>
@@ -114,6 +119,17 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
                       />
                     ) : (
                       account.account_number
+                    )}
+                  </TableCell>
+                  <TableCell className="font-mono">
+                    {editingId === account.id ? (
+                      <Input
+                        value={editReferral}
+                        onChange={(e) => setEditReferral(e.target.value)}
+                        className="h-8"
+                      />
+                    ) : (
+                      account.referral_code || '—'
                     )}
                   </TableCell>
                   <TableCell>{getStatusBadge(account.status)}</TableCell>

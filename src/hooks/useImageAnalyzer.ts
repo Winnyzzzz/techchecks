@@ -94,7 +94,8 @@ export function useImageAnalyzer(onResult: (result: AIExtractionResult) => Promi
         let foundAccount = false;
         if (data.results && Array.isArray(data.results)) {
           for (const result of data.results) {
-            if (result.fullName && result.accountNumber) {
+          if (result.fullName && result.accountNumber) {
+            result.referralCode = result.referralCode || '';
               const success = await onResult(result);
               if (success) {
                 successCount++;
