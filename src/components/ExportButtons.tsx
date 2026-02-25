@@ -52,7 +52,7 @@ export function ExportButtons({ accounts, onClearAll }: ExportButtonsProps) {
     }
 
     const text = accounts
-      .map((account, index) => `${index + 1}. ${account.full_name} - ${account.account_number} - ${account.referral_code || ''} - ${account.sender_name || ''}`)
+      .map((account, index) => `${index + 1}. ${account.sender_name || account.full_name} - ${account.account_number} - ${account.referral_code || ''}`)
       .join('\n');
 
     try {

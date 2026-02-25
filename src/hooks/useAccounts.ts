@@ -39,7 +39,7 @@ export function useAccounts(deviceId: string) {
           full_name: result.fullName,
           account_number: result.accountNumber.replace(/\s/g, ''),
           referral_code: result.referralCode || '',
-          sender_name: result.senderName || '',
+          sender_name: result.senderName || result.fullName || '',
           status: 'verified'
         })
         .select()

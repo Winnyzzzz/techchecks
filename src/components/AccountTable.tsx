@@ -23,7 +23,7 @@ interface AccountTableProps {
 export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState('');
+  
   const [editAccount, setEditAccount] = useState('');
   const [editReferral, setEditReferral] = useState('');
   const [editSender, setEditSender] = useState('');
@@ -32,7 +32,6 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
   const [swappedIds, setSwappedIds] = useState<string[]>([]);
 
   const filteredAccounts = accounts.filter(account =>
-    account.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     account.account_number.includes(searchTerm) ||
     account.referral_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
     account.sender_name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -40,15 +39,15 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
 
   const startEditing = (account: ExtractedAccount) => {
     setEditingId(account.id);
-    setEditName(account.full_name);
     setEditAccount(account.account_number);
     setEditReferral(account.referral_code);
     setEditSender(account.sender_name);
   };
 
   const saveEdit = () => {
-    if (editingId && editName.trim() && editAccount.trim()) {
-      onUpdate(editingId, editName.trim(), editAccount.trim(), editReferral.trim(), editSender.trim());
+    if (editingId && editAccount.trim()) {
+      const account = accounts.find(a => a.id === editingId);
+      onUpdate(editingId, account?.full_name || '', editAccount.trim(), editReferral.trim(), editSender.trim());
       setEditingId(null);
     }
   };
@@ -124,7 +123,6 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
           <TableHeader>
             <TableRow>
               <TableHead className="w-12">STT</TableHead>
-              <TableHead>Tên đăng nhập</TableHead>
               <TableHead>Số tài khoản</TableHead>
               <TableHead>Mã giới thiệu</TableHead>
               <TableHead>Họ và tên (Nội dung)</TableHead>
@@ -135,7 +133,7 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
           <TableBody>
             {filteredAccounts.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                   {searchTerm ? 'Không tìm thấy kết quả' : 'Chưa có dữ liệu. Tải ảnh lên để bắt đầu.'}
                 </TableCell>
               </TableRow>
@@ -143,13 +141,6 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
               filteredAccounts.map((account, index) => (
                 <TableRow key={account.id}>
                   <TableCell className="font-medium">{index + 1}</TableCell>
-                  <TableCell>
-                    {editingId === account.id ? (
-                      <Input value={editName} onChange={(e) => setEditName(e.target.value)} className="h-8" />
-                    ) : (
-                      account.full_name
-                    )}
-                  </TableCell>
                   <TableCell className="font-mono">
                     {editingId === account.id ? (
                       <Input value={editAccount} onChange={(e) => setEditAccount(e.target.value)} className="h-8" />
