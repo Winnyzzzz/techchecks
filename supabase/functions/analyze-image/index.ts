@@ -48,22 +48,26 @@ serve(async (req) => {
 Nhiệm vụ của bạn:
 1. Phân tích hình ảnh được cung cấp
 2. Trích xuất các thông tin sau:
-   - fullName: tên tài khoản người nhận tiền (hiển thị nổi bật trên biên lai/QR, thường viết hoa không dấu)
-   - accountNumber: dãy số tài khoản (loại bỏ tất cả dấu cách)
+   - fullName: tên tài khoản người nhận tiền
+   - accountNumber: số tài khoản người nhận (loại bỏ tất cả dấu cách)
    - referralCode: mã giới thiệu (nếu có, nếu không thì "")
-   - senderName: tên người gửi/chuyển tiền, CHỈ lấy từ dòng "Nội dung" hoặc "Lời nhắn"
+   - senderName: tên lấy từ dòng "Nội dung"/"Lời nhắn"/"Nội dung chuyển tiền" (nếu có)
 
 QUY TẮC BẮT BUỘC:
-1. senderName CHỈ được lấy từ dòng "Nội dung" hoặc "Lời nhắn" trong biên lai. Nếu ảnh KHÔNG có dòng "Nội dung"/"Lời nhắn" (ví dụ: ảnh mã QR, ảnh thông tin tài khoản), thì senderName PHẢI là "" (chuỗi rỗng).
-2. TUYỆT ĐỐI KHÔNG BAO GIỜ copy giá trị fullName sang senderName. Hai trường này PHẢI độc lập.
-3. fullName là tên người nhận hiển thị trên biên lai/QR.
+1. Nếu ảnh là biên lai chuyển tiền có cả "Từ tài khoản" và "Tới tài khoản": LUÔN lấy thông tin từ phần "Tới tài khoản" (người nhận). fullName = tên người nhận, accountNumber = số tài khoản người nhận.
+2. senderName CHỈ được lấy từ dòng "Nội dung" hoặc "Lời nhắn" hoặc "Nội dung chuyển tiền". Nếu không có dòng này thì senderName = "".
+3. TUYỆT ĐỐI KHÔNG copy fullName sang senderName.
 4. Số tài khoản: loại bỏ tất cả dấu cách, chỉ giữ lại số.
 5. Nếu không tìm thấy thông tin, trả về mảng rỗng.
 
-Ví dụ 1 - Ảnh mã QR ngân hàng (không có nội dung chuyển tiền):
+Ví dụ 1 - Ảnh mã QR ngân hàng:
 {"fullName": "NGUYEN VAN A", "accountNumber": "1234567890", "referralCode": "", "senderName": ""}
 
-Ví dụ 2 - Biên lai chuyển tiền có nội dung "Duong Hoang Long chuyen tien QR":
+Ví dụ 2 - Biên lai chuyển tiền từ NGUYEN VAN SANG tới TRAN THI PHEL, nội dung "ck":
+{"fullName": "TRAN THI PHEL", "accountNumber": "10003464382", "referralCode": "", "senderName": ""}
+(Lưu ý: "ck" không phải tên người nên senderName = "")
+
+Ví dụ 3 - Biên lai có nội dung "Duong Hoang Long chuyen tien":
 {"fullName": "NGUYEN VAN A", "accountNumber": "1234567890", "referralCode": "", "senderName": "Duong Hoang Long"}
 
 Trả về JSON theo format:
