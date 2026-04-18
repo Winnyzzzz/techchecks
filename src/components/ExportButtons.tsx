@@ -26,16 +26,14 @@ export function ExportButtons({ accounts, onClearAll }: ExportButtonsProps) {
       // Fill in data starting from row 2 (row 1 is header)
       accounts.forEach((account, index) => {
         const row = index + 2; // Excel rows are 1-indexed, row 1 is header
-        ws[`A${row}`] = { t: 'n', v: index + 1 }; // STT
-        ws[`B${row}`] = { t: 's', v: account.sender_name || account.full_name }; // Họ và Tên người nhận
-        ws[`C${row}`] = { t: 's', v: account.account_number }; // Số tài khoản
-        ws[`D${row}`] = { t: 'n', v: 5000 }; // Số tiền mặc định
-        ws[`E${row}`] = { t: 's', v: 'ck' }; // Nội dung chuyển tiền mặc định
+        ws[`A${row}`] = { t: 's', v: account.sender_name || account.full_name }; // Họ và tên
+        ws[`B${row}`] = { t: 's', v: account.account_number }; // Số tài khoản
+        ws[`C${row}`] = { t: 's', v: account.referral_code || '' }; // Mã giới thiệu
       });
 
       // Update the range to include all data rows
-      const lastRow = Math.max(accounts.length + 1, 201); // Keep at least the template rows
-      ws['!ref'] = `A1:F${lastRow}`;
+      const lastRow = Math.max(accounts.length + 1, 201);
+      ws['!ref'] = `A1:C${lastRow}`;
 
       XLSX.writeFile(wb, `ft_batch_xlsx_${new Date().toISOString().split('T')[0]}.xlsx`);
       toast.success('Đã xuất file Excel thành công');
