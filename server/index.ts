@@ -203,48 +203,74 @@ Trả về JSON theo format:
   "results": [{"fullName": "...", "accountNumber": "...", "referralCode": "...", "senderName": "..."}]
 }`;
 
-    try {
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [
-          {
-            role: "user",
-            parts: [
-              { text: "Hãy phân tích ảnh này và trích xuất tên đăng nhập, số tài khoản ngân hàng và mã giới thiệu. Trả về kết quả dưới dạng JSON." },
-              { inlineData: { mimeType, data: base64Data } },
-            ],
+    const callAI = async () => {
+      const timeoutMs = 45000;
+      return await Promise.race([
+        ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: [
+            {
+              role: "user",
+              parts: [
+                { text: "Hãy phân tích ảnh này và trích xuất tên đăng nhập, số tài khoản ngân hàng và mã giới thiệu. Trả về kết quả dưới dạng JSON." },
+                { inlineData: { mimeType, data: base64Data } },
+              ],
+            },
+          ],
+          config: {
+            systemInstruction: systemPrompt,
+            responseMimeType: "application/json",
+            maxOutputTokens: 8192,
+            temperature: 0.1,
           },
-        ],
-        config: {
-          systemInstruction: systemPrompt,
-          responseMimeType: "application/json",
-          maxOutputTokens: 8192,
-          temperature: 0.1,
-        },
-      });
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("AI request timeout")), timeoutMs)),
+      ]) as any;
+    };
 
-      const content = response.text || "";
-      if (!content) {
-        return res.status(500).json({ error: "Không nhận được phản hồi từ AI" });
-      }
-
-      let parsedResult;
+    let lastErr: any = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        parsedResult = JSON.parse(content);
-      } catch {
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        parsedResult = jsonMatch ? JSON.parse(jsonMatch[0]) : { results: [] };
-      }
+        const response = await callAI();
+        const content = response.text || "";
+        if (!content) {
+          lastErr = new Error("empty response");
+          continue;
+        }
 
-      res.json(parsedResult);
-    } catch (aiError: any) {
-      console.error("AI error:", aiError);
-      const msg = aiError?.message || "";
-      if (msg.includes("429") || msg.toLowerCase().includes("rate")) {
-        return res.status(429).json({ error: "Đã vượt quá giới hạn yêu cầu. Vui lòng thử lại sau." });
+        let parsedResult;
+        try {
+          parsedResult = JSON.parse(content);
+        } catch {
+          const jsonMatch = content.match(/\{[\s\S]*\}/);
+          parsedResult = jsonMatch ? JSON.parse(jsonMatch[0]) : { results: [] };
+        }
+
+        return res.json(parsedResult);
+      } catch (aiError: any) {
+        lastErr = aiError;
+        const msg = String(aiError?.message || "");
+        const isRetryable =
+          msg.includes("timeout") ||
+          msg.includes("429") ||
+          msg.toLowerCase().includes("rate") ||
+          msg.includes("500") ||
+          msg.includes("503") ||
+          msg.toLowerCase().includes("unavailable");
+        console.error(`AI attempt ${attempt + 1} failed:`, msg);
+        if (!isRetryable) break;
+        await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
       }
-      return res.status(500).json({ error: "Lỗi khi phân tích ảnh" });
     }
+
+    const finalMsg = String(lastErr?.message || "");
+    if (finalMsg.includes("429") || finalMsg.toLowerCase().includes("rate")) {
+      return res.status(429).json({ error: "Đã vượt quá giới hạn yêu cầu. Vui lòng thử lại sau." });
+    }
+    if (finalMsg.includes("timeout")) {
+      return res.status(504).json({ error: "AI phản hồi quá lâu, vui lòng thử lại" });
+    }
+    return res.status(500).json({ error: "Lỗi khi phân tích ảnh" });
   } catch (error) {
     console.error("analyze-image error:", error);
     res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
