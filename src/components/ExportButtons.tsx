@@ -17,27 +17,23 @@ export function ExportButtons({ accounts, onClearAll }: ExportButtonsProps) {
     }
 
     try {
-      // Fetch the template file
-      const response = await fetch('/templates/ft_batch_xlsx_2025_VIE.xlsx');
-      const arrayBuffer = await response.arrayBuffer();
-      const wb = XLSX.read(arrayBuffer, { type: 'array' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = [
+        ['STT', 'Họ và Tên người nhận', 'Số tài khoản/Alias người nhận', 'Mã giới thiệu'],
+        ...accounts.map((account, index) => [
+          index + 1,
+          account.sender_name || account.full_name,
+          account.account_number,
+          account.referral_code || '',
+        ]),
+      ];
 
-      // Template columns: A=STT, B=Họ và Tên người nhận, C=Số tài khoản/Alias, D=Số tiền, E=Nội dung chuyển tiền
-      accounts.forEach((account, index) => {
-        const row = index + 2; // row 1 is header
-        ws[`A${row}`] = { t: 'n', v: index + 1 };
-        ws[`B${row}`] = { t: 's', v: account.sender_name || account.full_name };
-        ws[`C${row}`] = { t: 's', v: account.account_number };
-        ws[`D${row}`] = { t: 'n', v: 5000, z: '#,##0' };
-        ws[`E${row}`] = { t: 's', v: account.referral_code || 'ck' };
-      });
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      ws['!cols'] = [{ wch: 6 }, { wch: 30 }, { wch: 25 }, { wch: 20 }];
 
-      // Update the range to include all data rows
-      const lastRow = Math.max(accounts.length + 1, 201);
-      ws['!ref'] = `A1:E${lastRow}`;
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Danh sách');
 
-      XLSX.writeFile(wb, `ft_batch_xlsx_${new Date().toISOString().split('T')[0]}.xlsx`);
+      XLSX.writeFile(wb, `danh_sach_tai_khoan_${new Date().toISOString().split('T')[0]}.xlsx`);
       toast.success('Đã xuất file Excel thành công');
     } catch (error) {
       console.error('Error exporting Excel:', error);
