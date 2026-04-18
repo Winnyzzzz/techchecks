@@ -15,14 +15,17 @@ const normalizeAccount = (s: string) => String(s).replace(/\s/g, '');
 const dupKey = (fullName: string, accountNumber: string) =>
   `${normalizeName(fullName)}|${normalizeAccount(accountNumber)}`;
 
-const findValue = (row: Record<string, any>, candidates: string[]): string => {
+const norm = (s: string) => s.toLowerCase().replace(/\s+/g, '');
+
+const findValue = (row: Record<string, any>, keywords: string[]): string => {
   const keys = Object.keys(row);
-  for (const cand of candidates) {
-    const normalizedCand = cand.toLowerCase().replace(/\s+/g, '');
-    const match = keys.find(
-      k => k.toLowerCase().replace(/\s+/g, '') === normalizedCand
-    );
-    if (match && row[match] != null) return String(row[match]).trim();
+  // Try contains-match: header contains any keyword
+  for (const kw of keywords) {
+    const nk = norm(kw);
+    const match = keys.find(k => norm(k).includes(nk));
+    if (match && row[match] != null && String(row[match]).trim() !== '') {
+      return String(row[match]).trim();
+    }
   }
   return '';
 };
@@ -46,15 +49,65 @@ export function ImportExcelButton({ existingAccounts, onImport }: ImportExcelBut
         return;
       }
 
-      const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(ws, {
+      // Read raw rows (array of arrays) so we can handle any header layout
+      const rawRows: any[][] = XLSX.utils.sheet_to_json(ws, {
+        header: 1,
         defval: '',
         raw: false,
+        blankrows: false,
       });
 
-      if (rows.length === 0) {
+      if (rawRows.length < 2) {
         toast.error('Không có dữ liệu trong file');
         return;
       }
+
+      // Find the header row: a row that mentions "tên" or "tài khoản" or "stk"
+      let headerIdx = 0;
+      for (let i = 0; i < Math.min(rawRows.length, 5); i++) {
+        const joined = rawRows[i].map(c => norm(String(c ?? ''))).join('|');
+        if (joined.includes('tên') || joined.includes('tàikhoản') || joined.includes('stk')) {
+          headerIdx = i;
+          break;
+        }
+      }
+      const headers = rawRows[headerIdx].map(h => String(h ?? ''));
+      const dataRows = rawRows.slice(headerIdx + 1);
+
+      // Determine column indices for each field
+      const findCol = (keywords: string[]): number => {
+        for (const kw of keywords) {
+          const nk = norm(kw);
+          const idx = headers.findIndex(h => {
+            const nh = norm(h);
+            return nh.length > 0 && nh.includes(nk);
+          });
+          if (idx !== -1) return idx;
+        }
+        return -1;
+      };
+
+      // Avoid matching "tên" inside "STT" - require longer keywords first
+      let nameCol = findCol(['họvàtên', 'họtên', 'tênngườinhận', 'tênngườithụhưởng', 'fullname', 'tên']);
+      let accCol = findCol(['sốtàikhoản', 'stk', 'alias', 'account']);
+      let refCol = findCol(['mãgiớithiệu', 'giớithiệu', 'referral', 'mãgt']);
+      let senderCol = findCol(['ngườigửi', 'sender', 'nộidung']);
+
+      // Don't let nameCol be the STT column (sequence numbers)
+      if (nameCol !== -1 && norm(headers[nameCol] || '') === 'stt') {
+        nameCol = -1;
+      }
+      // If still no name column found, try positional fallback (col B for template)
+      if (nameCol === -1 && headers.length >= 2) nameCol = 1;
+      if (accCol === -1 && headers.length >= 3) accCol = 2;
+
+      // Convert to row objects keyed by our field names
+      const rows = dataRows.map(r => ({
+        fullName: nameCol >= 0 ? String(r[nameCol] ?? '').trim() : '',
+        accountNumber: accCol >= 0 ? normalizeAccount(String(r[accCol] ?? '')) : '',
+        referralCode: refCol >= 0 ? String(r[refCol] ?? '').trim() : '',
+        senderName: senderCol >= 0 ? String(r[senderCol] ?? '').trim() : '',
+      }));
 
       const existingKeys = new Set(
         existingAccounts.map(a => dupKey(a.full_name, a.account_number))
@@ -65,21 +118,13 @@ export function ImportExcelButton({ existingAccounts, onImport }: ImportExcelBut
       const invalidRows: { row: number; reason: string }[] = [];
 
       for (let i = 0; i < rows.length; i++) {
-        const row = rows[i];
-        const rowNum = i + 2; // +2: header is row 1, data starts row 2
+        const { fullName, accountNumber, referralCode, senderName } = rows[i];
+        const rowNum = headerIdx + 2 + i; // actual Excel row number
 
-        const fullName = findValue(row, [
-          'Họ và tên', 'Họ tên', 'Họ và tên (Nội dung)', 'Tên', 'fullName', 'Full Name', 'Name'
-        ]);
-        const accountNumber = normalizeAccount(
-          findValue(row, ['Số tài khoản', 'STK', 'Account Number', 'accountNumber'])
-        );
-        const referralCode = findValue(row, [
-          'Mã giới thiệu', 'Mã GT', 'Referral Code', 'referralCode'
-        ]);
-        const senderName = findValue(row, [
-          'Người gửi', 'Tên người gửi', 'Sender Name', 'senderName', 'Nội dung'
-        ]);
+        // Skip completely empty rows silently
+        if (!fullName && !accountNumber && !referralCode && !senderName) {
+          continue;
+        }
 
         if (!fullName && !accountNumber) {
           invalidRows.push({ row: rowNum, reason: 'thiếu họ tên và STK' });

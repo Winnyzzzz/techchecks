@@ -23,17 +23,19 @@ export function ExportButtons({ accounts, onClearAll }: ExportButtonsProps) {
       const wb = XLSX.read(arrayBuffer, { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
 
-      // Fill in data starting from row 2 (row 1 is header)
+      // Template columns: A=STT, B=Họ và Tên người nhận, C=Số tài khoản/Alias, D=Số tiền, E=Nội dung
       accounts.forEach((account, index) => {
-        const row = index + 2; // Excel rows are 1-indexed, row 1 is header
-        ws[`A${row}`] = { t: 's', v: account.sender_name || account.full_name }; // Họ và tên
-        ws[`B${row}`] = { t: 's', v: account.account_number }; // Số tài khoản
-        ws[`C${row}`] = { t: 's', v: account.referral_code || '' }; // Mã giới thiệu
+        const row = index + 2; // row 1 is header
+        ws[`A${row}`] = { t: 'n', v: index + 1 };
+        ws[`B${row}`] = { t: 's', v: account.sender_name || account.full_name };
+        ws[`C${row}`] = { t: 's', v: account.account_number };
+        ws[`D${row}`] = { t: 's', v: '' };
+        ws[`E${row}`] = { t: 's', v: account.referral_code || '' };
       });
 
       // Update the range to include all data rows
       const lastRow = Math.max(accounts.length + 1, 201);
-      ws['!ref'] = `A1:C${lastRow}`;
+      ws['!ref'] = `A1:E${lastRow}`;
 
       XLSX.writeFile(wb, `ft_batch_xlsx_${new Date().toISOString().split('T')[0]}.xlsx`);
       toast.success('Đã xuất file Excel thành công');
