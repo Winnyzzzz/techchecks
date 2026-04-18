@@ -33,7 +33,7 @@ export function ExportButtons({ accounts, onClearAll }: ExportButtonsProps) {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Danh sách');
 
-      XLSX.writeFile(wb, `danh_sach_tai_khoan_${new Date().toISOString().split('T')[0]}.xlsx`);
+      XLSX.writeFile(wb, `${accounts.length}_${new Date().toISOString().split('T')[0]}.xlsx`);
       toast.success('Đã xuất file Excel thành công');
     } catch (error) {
       console.error('Error exporting Excel:', error);
