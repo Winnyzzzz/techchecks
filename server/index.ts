@@ -1,4 +1,5 @@
 import express from "express";
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { GoogleGenAI } from "@google/genai";
@@ -250,10 +251,11 @@ Trả về JSON theo format:
   }
 });
 
-if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.join(__dirname, "../dist/public")));
+const publicDir = path.join(__dirname, "../public");
+if (fs.existsSync(publicDir)) {
+  app.use(express.static(publicDir));
   app.get("*", (_req, res) => {
-    res.sendFile(path.join(__dirname, "../dist/public/index.html"));
+    res.sendFile(path.join(publicDir, "index.html"));
   });
 }
 
