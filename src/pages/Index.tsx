@@ -24,14 +24,20 @@ const Index = () => {
 
   const CORRECT_REFERRAL = 'PAPER202214';
   const referralStats = useMemo(() => {
-    let missing = 0;
-    let wrong = 0;
+    const missingList: typeof accounts = [];
+    const wrongList: typeof accounts = [];
     accounts.forEach(a => {
       const code = (a.referral_code || '').trim();
-      if (!code) missing++;
-      else if (code.toUpperCase() !== CORRECT_REFERRAL) wrong++;
+      if (!code) missingList.push(a);
+      else if (code.toUpperCase() !== CORRECT_REFERRAL) wrongList.push(a);
     });
-    return { missing, wrong, total: missing + wrong };
+    return {
+      missing: missingList.length,
+      wrong: wrongList.length,
+      total: missingList.length + wrongList.length,
+      missingList,
+      wrongList,
+    };
   }, [accounts]);
 
   // Handle shared link on mount
@@ -98,6 +104,48 @@ const Index = () => {
               <div className="text-xs mt-0.5 text-amber-800 dark:text-amber-300">
                 {referralStats.missing > 0 && <span>Thiếu mã: <strong>{referralStats.missing}</strong>. </span>}
                 {referralStats.wrong > 0 && <span>Sai mã (khác "{CORRECT_REFERRAL}"): <strong>{referralStats.wrong}</strong>.</span>}
+              </div>
+
+              <div className="mt-2 space-y-2">
+                {referralStats.wrongList.length > 0 && (
+                  <div>
+                    <div className="text-xs font-semibold text-amber-900 dark:text-amber-200 mb-1">
+                      Sai mã giới thiệu:
+                    </div>
+                    <ul className="space-y-0.5 max-h-40 overflow-auto pr-2">
+                      {referralStats.wrongList.map(a => (
+                        <li
+                          key={a.id}
+                          className="text-xs text-amber-900 dark:text-amber-200 flex flex-wrap items-baseline gap-x-2"
+                          data-testid={`text-wrong-referral-${a.id}`}
+                        >
+                          <span className="font-medium">{a.full_name}</span>
+                          <span className="font-mono opacity-80">{a.account_number}</span>
+                          <span className="opacity-80">— mã hiện tại: <span className="font-mono">"{a.referral_code}"</span></span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {referralStats.missingList.length > 0 && (
+                  <div>
+                    <div className="text-xs font-semibold text-amber-900 dark:text-amber-200 mb-1">
+                      Thiếu mã giới thiệu:
+                    </div>
+                    <ul className="space-y-0.5 max-h-40 overflow-auto pr-2">
+                      {referralStats.missingList.map(a => (
+                        <li
+                          key={a.id}
+                          className="text-xs text-amber-900 dark:text-amber-200 flex flex-wrap items-baseline gap-x-2"
+                          data-testid={`text-missing-referral-${a.id}`}
+                        >
+                          <span className="font-medium">{a.full_name}</span>
+                          <span className="font-mono opacity-80">{a.account_number}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             </div>
           </div>
