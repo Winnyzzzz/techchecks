@@ -23,14 +23,14 @@ export function ExportButtons({ accounts, onClearAll }: ExportButtonsProps) {
       const wb = XLSX.read(arrayBuffer, { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
 
-      // Template columns: A=STT, B=Họ và Tên người nhận, C=Số tài khoản/Alias, D=Số tiền, E=Nội dung
+      // Template columns: A=STT, B=Họ và Tên người nhận, C=Số tài khoản/Alias, D=Số tiền, E=Nội dung chuyển tiền
       accounts.forEach((account, index) => {
         const row = index + 2; // row 1 is header
         ws[`A${row}`] = { t: 'n', v: index + 1 };
         ws[`B${row}`] = { t: 's', v: account.sender_name || account.full_name };
         ws[`C${row}`] = { t: 's', v: account.account_number };
-        ws[`D${row}`] = { t: 's', v: '' };
-        ws[`E${row}`] = { t: 's', v: account.referral_code || '' };
+        ws[`D${row}`] = { t: 'n', v: 5000, z: '#,##0' };
+        ws[`E${row}`] = { t: 's', v: account.referral_code || 'ck' };
       });
 
       // Update the range to include all data rows

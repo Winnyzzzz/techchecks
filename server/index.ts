@@ -187,7 +187,7 @@ Nhiệm vụ của bạn:
 1. Phân tích hình ảnh được cung cấp
 2. Trích xuất các thông tin sau:
    - fullName: tên tài khoản người nhận tiền
-   - accountNumber: số tài khoản / alias / mã định danh người nhận (giữ nguyên ký tự chữ-số, chỉ loại bỏ dấu cách). CÓ THỂ là chuỗi số, chuỗi chữ-số ngẫu nhiên, hoặc alias như "vidi.username" — VẪN HỢP LỆ, hãy trích xuất nguyên văn.
+   - accountNumber: nội dung hiển thị tại ô "Số tài khoản" / "STK" / "Tới tài khoản" — LẤY NGUYÊN VĂN những gì hiển thị, kể cả khi đó là chuỗi chữ tiếng Việt như "Số Ngẫu Nhiên", "Số ngẫu nhiên", một alias như "vidi.username", hay chuỗi chữ-số bất kỳ. Chỉ loại bỏ dấu cách thừa, KHÔNG bỏ chữ cái, KHÔNG dịch, KHÔNG suy đoán.
    - referralCode: mã giới thiệu (nếu có, nếu không thì "")
    - senderName: tên lấy từ dòng "Nội dung"/"Lời nhắn"/"Nội dung chuyển tiền" (nếu có)
 
@@ -195,7 +195,7 @@ QUY TẮC BẮT BUỘC:
 1. Nếu ảnh là biên lai chuyển tiền có cả "Từ tài khoản" và "Tới tài khoản": LUÔN lấy thông tin từ phần "Tới tài khoản" (người nhận). fullName = tên người nhận, accountNumber = số tài khoản người nhận.
 2. senderName CHỈ được lấy từ dòng "Nội dung" hoặc "Lời nhắn" hoặc "Nội dung chuyển tiền". Nếu không có dòng này thì senderName = "".
 3. TUYỆT ĐỐI KHÔNG copy fullName sang senderName.
-4. Số tài khoản: giữ nguyên các ký tự chữ và số, chỉ loại bỏ dấu cách. KHÔNG được loại bỏ chữ cái hay ký tự đặc biệt — chuỗi alias/ngẫu nhiên vẫn hợp lệ.
+4. Số tài khoản: lấy NGUYÊN VĂN nội dung hiển thị tại vị trí ô số tài khoản (kể cả chữ tiếng Việt như "Số Ngẫu Nhiên"). Chỉ loại bỏ dấu cách thừa giữa các ký tự, KHÔNG được lọc bỏ chữ cái, KHÔNG được dịch, KHÔNG được thay thế.
 5. Nếu không tìm thấy thông tin, trả về mảng rỗng.
 
 Trả về JSON theo format:
