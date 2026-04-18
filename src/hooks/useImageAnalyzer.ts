@@ -1,5 +1,4 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { AIExtractionResult } from '@/types/account';
 import { toast } from 'sonner';
 
@@ -76,16 +75,19 @@ export function useImageAnalyzer(onResult: (result: AIExtractionResult) => Promi
       try {
         const base64 = await fileToBase64(file);
         
-        const { data, error } = await supabase.functions.invoke('analyze-image', {
-          body: { imageBase64: base64 }
+        const response = await fetch('/api/analyze-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64: base64 }),
         });
+        const data = await response.json();
 
-        if (error) {
-          console.error('Edge function error:', error);
+        if (!response.ok) {
+          console.error('API error:', response.status, data);
           newFailedImages.push({
             fileName: file.name,
             previewUrl: imageUrl,
-            error: error.message || 'Lỗi khi gọi AI phân tích'
+            error: data.error || 'Lỗi khi gọi AI phân tích'
           });
           continue;
         }

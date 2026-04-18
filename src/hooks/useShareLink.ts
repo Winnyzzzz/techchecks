@@ -1,5 +1,4 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 function generateShortCode(): string {
@@ -21,15 +20,13 @@ export function useShareLink(deviceId: string) {
     setIsGenerating(true);
     try {
       // Check if share link already exists for this device
-      const { data: existing } = await supabase
-        .from('share_links')
-        .select('share_code')
-        .eq('device_id', deviceId)
-        .single();
-
-      if (existing) {
-        setShareCode(existing.share_code);
-        return existing.share_code;
+      const existingRes = await fetch(`/api/share-links/${deviceId}`);
+      if (existingRes.ok) {
+        const existing = await existingRes.json();
+        if (existing?.shareCode) {
+          setShareCode(existing.shareCode);
+          return existing.shareCode;
+        }
       }
 
       // Generate new share code
@@ -38,21 +35,23 @@ export function useShareLink(deviceId: string) {
       const maxAttempts = 5;
 
       while (attempts < maxAttempts) {
-        const { error } = await supabase
-          .from('share_links')
-          .insert({ device_id: deviceId, share_code: newCode });
+        const res = await fetch('/api/share-links', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deviceId, shareCode: newCode }),
+        });
 
-        if (!error) {
+        if (res.ok) {
           setShareCode(newCode);
           return newCode;
         }
 
-        // If duplicate, try another code
-        if (error.code === '23505') {
+        const err = await res.json();
+        if (err.code === '23505') {
           newCode = generateShortCode();
           attempts++;
         } else {
-          throw error;
+          throw new Error(err.error || 'Unknown error');
         }
       }
 
@@ -68,17 +67,10 @@ export function useShareLink(deviceId: string) {
 
   const getDeviceIdFromCode = useCallback(async (code: string): Promise<string | null> => {
     try {
-      const { data, error } = await supabase
-        .from('share_links')
-        .select('device_id')
-        .eq('share_code', code.toUpperCase())
-        .single();
-
-      if (error || !data) {
-        return null;
-      }
-
-      return data.device_id;
+      const res = await fetch(`/api/share-links/code/${code.toUpperCase()}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data?.deviceId || null;
     } catch (error) {
       console.error('Error getting device from code:', error);
       return null;
