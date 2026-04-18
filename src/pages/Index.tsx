@@ -44,19 +44,6 @@ const Index = () => {
   }, [deviceId, getShareCodeFromUrl, getDeviceIdFromCode, setSharedDeviceId]);
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <ShareButton 
-              shareCode={shareCode} 
-              isGenerating={isGenerating} 
-              onGenerateLink={generateShareLink} 
-            />
-            <ExportButtons accounts={accounts} onClearAll={clearAllAccounts} />
-          </div>
-        </div>
-      </header>
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6 space-y-6">
