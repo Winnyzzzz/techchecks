@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { AIExtractionResult } from '@/types/account';
+import { AIExtractionResult, ExtractedAccount } from '@/types/account';
 import { toast } from 'sonner';
 
 interface ProcessingState {
@@ -15,7 +15,15 @@ export interface FailedImage {
   error: string;
 }
 
-export function useImageAnalyzer(onResult: (result: AIExtractionResult) => Promise<boolean>) {
+const normalizeName = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+const normalizeAccount = (s: string) => s.replace(/\s/g, '');
+const dupKey = (fullName: string, accountNumber: string) =>
+  `${normalizeName(fullName)}|${normalizeAccount(accountNumber)}`;
+
+export function useImageAnalyzer(
+  onResult: (result: AIExtractionResult) => Promise<boolean>,
+  existingAccounts: ExtractedAccount[] = []
+) {
   const [processingState, setProcessingState] = useState<ProcessingState>({
     isProcessing: false,
     current: 0,
@@ -60,7 +68,14 @@ export function useImageAnalyzer(onResult: (result: AIExtractionResult) => Promi
     });
 
     let successCount = 0;
+    let duplicateCount = 0;
     const newFailedImages: FailedImage[] = [];
+
+    // Track (fullName + accountNumber) seen in this batch and existing DB
+    const seenInBatch = new Map<string, string>(); // key -> fileName
+    const existingKeys = new Set<string>(
+      existingAccounts.map(a => dupKey(a.full_name, a.account_number))
+    );
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -93,15 +108,42 @@ export function useImageAnalyzer(onResult: (result: AIExtractionResult) => Promi
         }
 
         let foundAccount = false;
+        let duplicateMessage: string | null = null;
+
         if (data.results && Array.isArray(data.results)) {
           for (const result of data.results) {
             if (result.fullName && result.accountNumber) {
               result.referralCode = result.referralCode || '';
               result.senderName = result.senderName || '';
+
+              const key = dupKey(result.fullName, result.accountNumber);
+              const prevFile = seenInBatch.get(key);
+
+              if (prevFile) {
+                duplicateCount++;
+                duplicateMessage = `Trùng với ảnh "${prevFile}" (${result.fullName} - ${result.accountNumber})`;
+                toast.warning(`Phát hiện trùng: "${file.name}" và "${prevFile}"`, {
+                  description: `${result.fullName} - ${result.accountNumber}`,
+                  duration: 6000,
+                });
+                continue;
+              }
+              if (existingKeys.has(key)) {
+                duplicateCount++;
+                duplicateMessage = `Đã có sẵn trong danh sách (${result.fullName} - ${result.accountNumber})`;
+                toast.warning(`Ảnh "${file.name}" trùng với tài khoản đã có`, {
+                  description: `${result.fullName} - ${result.accountNumber}`,
+                  duration: 6000,
+                });
+                continue;
+              }
+
               const success = await onResult(result);
               if (success) {
                 successCount++;
                 foundAccount = true;
+                seenInBatch.set(key, file.name);
+                existingKeys.add(key);
               }
             }
           }
@@ -111,7 +153,7 @@ export function useImageAnalyzer(onResult: (result: AIExtractionResult) => Promi
           newFailedImages.push({
             fileName: file.name,
             previewUrl: imageUrl,
-            error: 'Không tìm thấy thông tin tài khoản trong ảnh'
+            error: duplicateMessage || 'Không tìm thấy thông tin tài khoản trong ảnh'
           });
         } else {
           URL.revokeObjectURL(imageUrl);
@@ -137,13 +179,16 @@ export function useImageAnalyzer(onResult: (result: AIExtractionResult) => Promi
     if (successCount > 0) {
       toast.success(`Đã trích xuất ${successCount} tài khoản thành công`);
     }
+    if (duplicateCount > 0) {
+      toast.warning(`Tổng cộng ${duplicateCount} ảnh trùng tên + STK đã được bỏ qua`);
+    }
     if (newFailedImages.length > 0) {
       toast.error(`${newFailedImages.length} ảnh không thể phân tích`);
     }
-    if (successCount === 0 && newFailedImages.length === 0) {
+    if (successCount === 0 && duplicateCount === 0 && newFailedImages.length === 0) {
       toast.info('Không tìm thấy thông tin tài khoản trong các ảnh');
     }
-  }, [onResult, clearFailedImages]);
+  }, [onResult, clearFailedImages, existingAccounts]);
 
   return {
     processingState,

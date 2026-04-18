@@ -16,7 +16,7 @@ import { toast } from 'sonner';
 const Index = () => {
   const { deviceId, setSharedDeviceId, getShareCodeFromUrl } = useDeviceId();
   const { accounts, isLoading, addAccount, updateAccount, deleteAccount, clearAllAccounts } = useAccounts(deviceId);
-  const { processingState, analyzeImages, failedImages, removeFailedImage, clearFailedImages } = useImageAnalyzer(addAccount);
+  const { processingState, analyzeImages, failedImages, removeFailedImage, clearFailedImages } = useImageAnalyzer(addAccount, accounts);
   const { shareCode, isGenerating, generateShareLink, getDeviceIdFromCode } = useShareLink(deviceId);
   const [isLoadingShared, setIsLoadingShared] = useState(false);
 
