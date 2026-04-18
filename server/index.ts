@@ -1,9 +1,18 @@
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
+import { GoogleGenAI } from "@google/genai";
 import { db } from "./db";
 import { extractedAccounts, shareLinks } from "../shared/schema";
 import { eq, desc } from "drizzle-orm";
+
+const ai = new GoogleGenAI({
+  apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
+  httpOptions: {
+    apiVersion: "",
+    baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
+  },
+});
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -17,8 +26,8 @@ app.get("/api/accounts/:deviceId", async (req, res) => {
     const accounts = await db
       .select()
       .from(extractedAccounts)
-      .where(eq(extractedAccounts.deviceId, deviceId))
-      .orderBy(desc(extractedAccounts.createdAt));
+      .where(eq(extractedAccounts.device_id, deviceId))
+      .orderBy(desc(extractedAccounts.created_at));
     res.json(accounts);
   } catch (error) {
     console.error("Error fetching accounts:", error);
@@ -29,14 +38,17 @@ app.get("/api/accounts/:deviceId", async (req, res) => {
 app.post("/api/accounts", async (req, res) => {
   try {
     const { deviceId, fullName, accountNumber, referralCode, senderName } = req.body;
+    if (!deviceId || !fullName || !accountNumber) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
     const [account] = await db
       .insert(extractedAccounts)
       .values({
-        deviceId,
-        fullName,
-        accountNumber: accountNumber.replace(/\s/g, ""),
-        referralCode: referralCode || "",
-        senderName: senderName || "",
+        device_id: deviceId,
+        full_name: fullName,
+        account_number: String(accountNumber).replace(/\s/g, ""),
+        referral_code: referralCode || "",
+        sender_name: senderName || "",
         status: "verified",
       })
       .returning();
@@ -54,11 +66,11 @@ app.patch("/api/accounts/:id", async (req, res) => {
     const [account] = await db
       .update(extractedAccounts)
       .set({
-        fullName,
-        accountNumber: accountNumber.replace(/\s/g, ""),
-        referralCode,
-        senderName,
-        updatedAt: new Date(),
+        full_name: fullName,
+        account_number: String(accountNumber).replace(/\s/g, ""),
+        referral_code: referralCode,
+        sender_name: senderName,
+        updated_at: new Date(),
       })
       .where(eq(extractedAccounts.id, id))
       .returning();
@@ -83,7 +95,7 @@ app.delete("/api/accounts/:id", async (req, res) => {
 app.delete("/api/accounts/device/:deviceId", async (req, res) => {
   try {
     const { deviceId } = req.params;
-    await db.delete(extractedAccounts).where(eq(extractedAccounts.deviceId, deviceId));
+    await db.delete(extractedAccounts).where(eq(extractedAccounts.device_id, deviceId));
     res.json({ success: true });
   } catch (error) {
     console.error("Error clearing accounts:", error);
@@ -97,7 +109,7 @@ app.get("/api/share-links/:deviceId", async (req, res) => {
     const [link] = await db
       .select()
       .from(shareLinks)
-      .where(eq(shareLinks.deviceId, deviceId));
+      .where(eq(shareLinks.device_id, deviceId));
     res.json(link || null);
   } catch (error) {
     console.error("Error fetching share link:", error);
@@ -108,13 +120,27 @@ app.get("/api/share-links/:deviceId", async (req, res) => {
 app.post("/api/share-links", async (req, res) => {
   try {
     const { deviceId, shareCode } = req.body;
+    if (!deviceId || !shareCode) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
     const [link] = await db
       .insert(shareLinks)
-      .values({ deviceId, shareCode })
+      .values({ device_id: deviceId, share_code: shareCode })
       .returning();
     res.json(link);
   } catch (error: any) {
     if (error?.code === "23505") {
+      // Detect whether duplicate is on share_code (retryable) or device_id
+      const detail = String(error?.detail || "");
+      const isDeviceDup = detail.includes("device_id");
+      if (isDeviceDup) {
+        // Return existing link for this device
+        const [existing] = await db
+          .select()
+          .from(shareLinks)
+          .where(eq(shareLinks.device_id, req.body.deviceId));
+        if (existing) return res.json(existing);
+      }
       res.status(409).json({ error: "Duplicate share code", code: "23505" });
     } else {
       console.error("Error creating share link:", error);
@@ -129,8 +155,8 @@ app.get("/api/share-links/code/:shareCode", async (req, res) => {
     const [link] = await db
       .select()
       .from(shareLinks)
-      .where(eq(shareLinks.shareCode, shareCode.toUpperCase()));
-    res.json(link ? { deviceId: link.deviceId } : null);
+      .where(eq(shareLinks.share_code, shareCode.toUpperCase()));
+    res.json(link ? { deviceId: link.device_id } : null);
   } catch (error) {
     console.error("Error looking up share code:", error);
     res.status(500).json({ error: "Failed to look up share code" });
@@ -145,24 +171,16 @@ app.post("/api/analyze-image", async (req, res) => {
       return res.status(400).json({ error: "No image provided" });
     }
 
-    const AI_API_KEY = process.env.AI_API_KEY;
-    if (!AI_API_KEY) {
-      console.error("AI_API_KEY is not configured");
-      return res.status(500).json({ error: "AI service not configured" });
+    // Strip data URL prefix if present
+    let base64Data = imageBase64;
+    let mimeType = "image/jpeg";
+    const dataUrlMatch = imageBase64.match(/^data:([^;]+);base64,(.+)$/);
+    if (dataUrlMatch) {
+      mimeType = dataUrlMatch[1];
+      base64Data = dataUrlMatch[2];
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${AI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          {
-            role: "system",
-            content: `Bạn là một AI chuyên trích xuất thông tin từ ảnh chụp màn hình giao dịch ngân hàng, biên lai, mã QR, hoặc các tài liệu tài chính.
+    const systemPrompt = `Bạn là một AI chuyên trích xuất thông tin từ ảnh chụp màn hình giao dịch ngân hàng, biên lai, mã QR, hoặc các tài liệu tài chính.
 
 Nhiệm vụ của bạn:
 1. Phân tích hình ảnh được cung cấp
@@ -181,61 +199,51 @@ QUY TẮC BẮT BUỘC:
 
 Trả về JSON theo format:
 {
-  "results": [...]
-}`,
-          },
+  "results": [{"fullName": "...", "accountNumber": "...", "referralCode": "...", "senderName": "..."}]
+}`;
+
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [
           {
             role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Hãy phân tích ảnh này và trích xuất tên đăng nhập, số tài khoản ngân hàng và mã giới thiệu. Trả về kết quả dưới dạng JSON.",
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: imageBase64.startsWith("data:") ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`,
-                },
-              },
+            parts: [
+              { text: "Hãy phân tích ảnh này và trích xuất tên đăng nhập, số tài khoản ngân hàng và mã giới thiệu. Trả về kết quả dưới dạng JSON." },
+              { inlineData: { mimeType, data: base64Data } },
             ],
           },
         ],
-        max_tokens: 1000,
-        temperature: 0.1,
-      }),
-    });
+        config: {
+          systemInstruction: systemPrompt,
+          responseMimeType: "application/json",
+          maxOutputTokens: 8192,
+          temperature: 0.1,
+        },
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      if (response.status === 429) {
-        return res.status(429).json({ error: "Đã vượt quá giới hạn yêu cầu. Vui lòng thử lại sau." });
+      const content = response.text || "";
+      if (!content) {
+        return res.status(500).json({ error: "Không nhận được phản hồi từ AI" });
       }
-      if (response.status === 402) {
-        return res.status(402).json({ error: "Cần nạp thêm credits để sử dụng AI." });
+
+      let parsedResult;
+      try {
+        parsedResult = JSON.parse(content);
+      } catch {
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        parsedResult = jsonMatch ? JSON.parse(jsonMatch[0]) : { results: [] };
+      }
+
+      res.json(parsedResult);
+    } catch (aiError: any) {
+      console.error("AI error:", aiError);
+      const msg = aiError?.message || "";
+      if (msg.includes("429") || msg.toLowerCase().includes("rate")) {
+        return res.status(429).json({ error: "Đã vượt quá giới hạn yêu cầu. Vui lòng thử lại sau." });
       }
       return res.status(500).json({ error: "Lỗi khi phân tích ảnh" });
     }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-    if (!content) {
-      return res.status(500).json({ error: "Không nhận được phản hồi từ AI" });
-    }
-
-    let parsedResult;
-    try {
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        parsedResult = JSON.parse(jsonMatch[0]);
-      } else {
-        parsedResult = { results: [] };
-      }
-    } catch {
-      parsedResult = { results: [] };
-    }
-
-    res.json(parsedResult);
   } catch (error) {
     console.error("analyze-image error:", error);
     res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });

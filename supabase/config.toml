@@ -1,4 +1,0 @@
-project_id = "temzewsbrlwthqehbkdq"
-
-[functions.analyze-image]
-verify_jwt = false

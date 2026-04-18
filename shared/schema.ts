@@ -3,19 +3,19 @@ import { sql } from "drizzle-orm";
 
 export const extractedAccounts = pgTable("extracted_accounts", {
   id: text("id").primaryKey().default(sql`gen_random_uuid()`),
-  deviceId: text("device_id").notNull(),
-  fullName: text("full_name").notNull(),
-  accountNumber: text("account_number").notNull(),
-  referralCode: text("referral_code").notNull().default(""),
-  senderName: text("sender_name").notNull().default(""),
+  device_id: text("device_id").notNull(),
+  full_name: text("full_name").notNull(),
+  account_number: text("account_number").notNull(),
+  referral_code: text("referral_code").notNull().default(""),
+  sender_name: text("sender_name").notNull().default(""),
   status: text("status").notNull().default("pending"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const shareLinks = pgTable("share_links", {
   id: text("id").primaryKey().default(sql`gen_random_uuid()`),
-  deviceId: text("device_id").notNull().unique(),
-  shareCode: text("share_code").notNull().unique(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  device_id: text("device_id").notNull().unique(),
+  share_code: text("share_code").notNull().unique(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
