@@ -2,8 +2,8 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { GoogleGenAI } from "@google/genai";
-import { db } from "./db";
-import { extractedAccounts, shareLinks } from "../shared/schema";
+import { db } from "./db.js";
+import { extractedAccounts, shareLinks } from "../shared/schema.js";
 import { eq, desc } from "drizzle-orm";
 
 const ai = new GoogleGenAI({
