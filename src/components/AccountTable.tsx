@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Pencil, Trash2, Check, X, Search } from 'lucide-react';
+import { Pencil, Trash2, Check, X, Search, BadgeCheck } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -151,8 +151,15 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
                   <TableCell className="font-mono">
                     {editingId === account.id ? (
                       <Input value={editReferral} onChange={(e) => setEditReferral(e.target.value)} className="h-8" />
+                    ) : account.referral_code ? (
+                      <span className="inline-flex items-center gap-1">
+                        {account.referral_code}
+                        {account.referral_code.trim().toUpperCase() === 'PAPER202214' && (
+                          <BadgeCheck className="w-4 h-4 text-primary" aria-label="Mã chính xác" />
+                        )}
+                      </span>
                     ) : (
-                      account.referral_code || '—'
+                      '—'
                     )}
                   </TableCell>
                   <TableCell>
