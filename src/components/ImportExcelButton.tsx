@@ -62,9 +62,12 @@ export function ImportExcelButton({ existingAccounts, onImport }: ImportExcelBut
 
       let added = 0;
       let duplicates = 0;
-      let invalid = 0;
+      const invalidRows: { row: number; reason: string }[] = [];
 
-      for (const row of rows) {
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const rowNum = i + 2; // +2: header is row 1, data starts row 2
+
         const fullName = findValue(row, [
           'Họ và tên', 'Họ tên', 'Họ và tên (Nội dung)', 'Tên', 'fullName', 'Full Name', 'Name'
         ]);
@@ -78,8 +81,16 @@ export function ImportExcelButton({ existingAccounts, onImport }: ImportExcelBut
           'Người gửi', 'Tên người gửi', 'Sender Name', 'senderName', 'Nội dung'
         ]);
 
-        if (!fullName || !accountNumber) {
-          invalid++;
+        if (!fullName && !accountNumber) {
+          invalidRows.push({ row: rowNum, reason: 'thiếu họ tên và STK' });
+          continue;
+        }
+        if (!fullName) {
+          invalidRows.push({ row: rowNum, reason: `thiếu họ tên (STK: ${accountNumber})` });
+          continue;
+        }
+        if (!accountNumber) {
+          invalidRows.push({ row: rowNum, reason: `thiếu STK (${fullName})` });
           continue;
         }
 
@@ -99,14 +110,25 @@ export function ImportExcelButton({ existingAccounts, onImport }: ImportExcelBut
           added++;
           existingKeys.add(key);
         } else {
-          invalid++;
+          invalidRows.push({ row: rowNum, reason: `không thể lưu (${fullName} - ${accountNumber})` });
         }
       }
 
       if (added > 0) toast.success(`Đã nhập ${added} tài khoản từ Excel`);
       if (duplicates > 0) toast.warning(`${duplicates} dòng trùng tên + STK đã bỏ qua`);
-      if (invalid > 0) toast.error(`${invalid} dòng không hợp lệ`);
-      if (added === 0 && duplicates === 0 && invalid === 0) {
+      if (invalidRows.length > 0) {
+        const preview = invalidRows
+          .slice(0, 5)
+          .map(r => `Dòng ${r.row}: ${r.reason}`)
+          .join('\n');
+        const more = invalidRows.length > 5 ? `\n... và ${invalidRows.length - 5} dòng khác` : '';
+        toast.error(`${invalidRows.length} dòng không hợp lệ`, {
+          description: preview + more,
+          duration: 10000,
+        });
+        console.warn('Các dòng Excel không hợp lệ:', invalidRows);
+      }
+      if (added === 0 && duplicates === 0 && invalidRows.length === 0) {
         toast.info('Không có dữ liệu để nhập');
       }
     } catch (err) {
