@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { CreditCard, Scan } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { CreditCard, Scan, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ImageUploader } from '@/components/ImageUploader';
 import { ProcessingStatus } from '@/components/ProcessingStatus';
@@ -21,6 +21,18 @@ const Index = () => {
   const { processingState, analyzeImages, failedImages, removeFailedImage, clearFailedImages } = useImageAnalyzer(addAccount, accounts);
   const { shareCode, isGenerating, generateShareLink, getDeviceIdFromCode } = useShareLink(deviceId);
   const [isLoadingShared, setIsLoadingShared] = useState(false);
+
+  const CORRECT_REFERRAL = 'PAPER202214';
+  const referralStats = useMemo(() => {
+    let missing = 0;
+    let wrong = 0;
+    accounts.forEach(a => {
+      const code = (a.referral_code || '').trim();
+      if (!code) missing++;
+      else if (code.toUpperCase() !== CORRECT_REFERRAL) wrong++;
+    });
+    return { missing, wrong, total: missing + wrong };
+  }, [accounts]);
 
   // Handle shared link on mount
   useEffect(() => {
@@ -73,6 +85,22 @@ const Index = () => {
             total={processingState.total}
             currentImageUrl={processingState.currentImageUrl}
           />
+        )}
+
+        {/* Referral code warning */}
+        {referralStats.total > 0 && (
+          <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-900 rounded-lg p-3 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-amber-900 dark:text-amber-200">
+              <div className="font-medium">
+                {referralStats.total} tài khoản có mã giới thiệu không hợp lệ
+              </div>
+              <div className="text-xs mt-0.5 text-amber-800 dark:text-amber-300">
+                {referralStats.missing > 0 && <span>Thiếu mã: <strong>{referralStats.missing}</strong>. </span>}
+                {referralStats.wrong > 0 && <span>Sai mã (khác "{CORRECT_REFERRAL}"): <strong>{referralStats.wrong}</strong>.</span>}
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Failed Images List */}

@@ -68,6 +68,15 @@ export function FailedImagesList({ failedImages, onRemove, onClearAll }: FailedI
                 <p className="text-xs text-muted-foreground truncate" title={image.error}>
                   {image.error}
                 </p>
+                {image.duplicateOf && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5 truncate">
+                    {image.duplicateOf.source === 'existing' ? 'Trùng tài khoản đã có: ' : 'Trùng ảnh khác: '}
+                    <span className="font-medium">{image.duplicateOf.fullName}</span>
+                    {' — '}
+                    <span className="font-mono">{image.duplicateOf.accountNumber}</span>
+                    {image.duplicateOf.fileName && ` (${image.duplicateOf.fileName})`}
+                  </p>
+                )}
               </div>
               
               <div className="flex items-center gap-1">
@@ -114,6 +123,15 @@ export function FailedImagesList({ failedImages, onRemove, onClearAll }: FailedI
               <AlertTriangle className="w-4 h-4 flex-shrink-0" />
               <span>{previewImage?.error}</span>
             </div>
+            {previewImage?.duplicateOf && (
+              <div className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded p-2">
+                {previewImage.duplicateOf.source === 'existing' ? 'Trùng với tài khoản đã có trong danh sách:' : 'Trùng với một ảnh khác trong cùng lần quét:'}{' '}
+                <span className="font-medium">{previewImage.duplicateOf.fullName}</span>
+                {' — '}
+                <span className="font-mono">{previewImage.duplicateOf.accountNumber}</span>
+                {previewImage.duplicateOf.fileName && ` (ảnh: ${previewImage.duplicateOf.fileName})`}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

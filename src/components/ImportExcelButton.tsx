@@ -7,7 +7,7 @@ import * as XLSX from 'xlsx';
 
 interface ImportExcelButtonProps {
   existingAccounts: ExtractedAccount[];
-  onImport: (result: AIExtractionResult) => Promise<boolean>;
+  onImport: (result: AIExtractionResult) => Promise<unknown>;
 }
 
 const normalizeName = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');

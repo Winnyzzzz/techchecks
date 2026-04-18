@@ -17,7 +17,7 @@ import { toast } from 'sonner';
 
 interface AddAccountButtonProps {
   existingAccounts: ExtractedAccount[];
-  onAdd: (result: AIExtractionResult) => Promise<boolean>;
+  onAdd: (result: AIExtractionResult) => Promise<unknown>;
 }
 
 const normalizeName = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');

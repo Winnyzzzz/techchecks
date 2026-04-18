@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { AIExtractionResult, ExtractedAccount } from '@/types/account';
 import { toast } from 'sonner';
+import { saveImage } from '@/lib/imageStorage';
 
 interface ProcessingState {
   isProcessing: boolean;
@@ -13,6 +14,12 @@ export interface FailedImage {
   fileName: string;
   previewUrl: string;
   error: string;
+  duplicateOf?: {
+    fullName: string;
+    accountNumber: string;
+    source: 'batch' | 'existing';
+    fileName?: string;
+  };
 }
 
 const normalizeName = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -21,7 +28,7 @@ const dupKey = (fullName: string, accountNumber: string) =>
   `${normalizeName(fullName)}|${normalizeAccount(accountNumber)}`;
 
 export function useImageAnalyzer(
-  onResult: (result: AIExtractionResult) => Promise<boolean>,
+  onResult: (result: AIExtractionResult) => Promise<ExtractedAccount | null>,
   existingAccounts: ExtractedAccount[] = []
 ) {
   const [processingState, setProcessingState] = useState<ProcessingState>({
@@ -73,8 +80,8 @@ export function useImageAnalyzer(
 
     // Track (fullName + accountNumber) seen in this batch and existing DB
     const seenInBatch = new Map<string, string>(); // key -> fileName
-    const existingKeys = new Set<string>(
-      existingAccounts.map(a => dupKey(a.full_name, a.account_number))
+    const existingMap = new Map<string, ExtractedAccount>(
+      existingAccounts.map(a => [dupKey(a.full_name, a.account_number), a])
     );
 
     for (let i = 0; i < files.length; i++) {
@@ -109,6 +116,7 @@ export function useImageAnalyzer(
 
         let foundAccount = false;
         let duplicateMessage: string | null = null;
+        let duplicateInfo: FailedImage['duplicateOf'] | undefined;
 
         if (data.results && Array.isArray(data.results)) {
           for (const result of data.results) {
@@ -121,29 +129,43 @@ export function useImageAnalyzer(
 
               if (prevFile) {
                 duplicateCount++;
-                duplicateMessage = `Trùng với ảnh "${prevFile}" (${result.fullName} - ${result.accountNumber})`;
-                toast.warning(`Phát hiện trùng: "${file.name}" và "${prevFile}"`, {
+                duplicateMessage = `Trùng với ảnh "${prevFile}": ${result.fullName} - ${result.accountNumber}`;
+                duplicateInfo = {
+                  fullName: result.fullName,
+                  accountNumber: result.accountNumber,
+                  source: 'batch',
+                  fileName: prevFile,
+                };
+                toast.warning(`Trùng: "${file.name}" và "${prevFile}"`, {
                   description: `${result.fullName} - ${result.accountNumber}`,
                   duration: 6000,
                 });
                 continue;
               }
-              if (existingKeys.has(key)) {
+              const existing = existingMap.get(key);
+              if (existing) {
                 duplicateCount++;
-                duplicateMessage = `Đã có sẵn trong danh sách (${result.fullName} - ${result.accountNumber})`;
+                duplicateMessage = `Đã có sẵn: ${existing.full_name} - ${existing.account_number}`;
+                duplicateInfo = {
+                  fullName: existing.full_name,
+                  accountNumber: existing.account_number,
+                  source: 'existing',
+                };
                 toast.warning(`Ảnh "${file.name}" trùng với tài khoản đã có`, {
-                  description: `${result.fullName} - ${result.accountNumber}`,
+                  description: `${existing.full_name} - ${existing.account_number}`,
                   duration: 6000,
                 });
                 continue;
               }
 
-              const success = await onResult(result);
-              if (success) {
+              const account = await onResult(result);
+              if (account) {
                 successCount++;
                 foundAccount = true;
                 seenInBatch.set(key, file.name);
-                existingKeys.add(key);
+                existingMap.set(key, account);
+                // Save the original image to IndexedDB so it can be viewed later
+                saveImage(account.id, file).catch(() => {/* non-fatal */});
               }
             }
           }
@@ -153,7 +175,8 @@ export function useImageAnalyzer(
           newFailedImages.push({
             fileName: file.name,
             previewUrl: imageUrl,
-            error: duplicateMessage || 'Không tìm thấy thông tin tài khoản trong ảnh'
+            error: duplicateMessage || 'Không tìm thấy thông tin tài khoản trong ảnh',
+            duplicateOf: duplicateInfo,
           });
         } else {
           URL.revokeObjectURL(imageUrl);

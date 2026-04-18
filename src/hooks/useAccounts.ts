@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ExtractedAccount, AIExtractionResult } from '@/types/account';
 import { toast } from 'sonner';
+import { deleteImage, clearAllImages } from '@/lib/imageStorage';
 
 export function useAccounts(deviceId: string) {
   const [accounts, setAccounts] = useState<ExtractedAccount[]>([]);
@@ -25,8 +26,8 @@ export function useAccounts(deviceId: string) {
     fetchAccounts();
   }, [fetchAccounts]);
 
-  const addAccount = useCallback(async (result: AIExtractionResult): Promise<boolean> => {
-    if (!deviceId) return false;
+  const addAccount = useCallback(async (result: AIExtractionResult): Promise<ExtractedAccount | null> => {
+    if (!deviceId) return null;
     try {
       const res = await fetch('/api/accounts', {
         method: 'POST',
@@ -40,12 +41,12 @@ export function useAccounts(deviceId: string) {
         }),
       });
       if (!res.ok) throw new Error('Failed to add');
-      const data = await res.json();
-      setAccounts(prev => [data as ExtractedAccount, ...prev]);
-      return true;
+      const data = await res.json() as ExtractedAccount;
+      setAccounts(prev => [data, ...prev]);
+      return data;
     } catch (error) {
       console.error('Error adding account:', error);
-      return false;
+      return null;
     }
   }, [deviceId]);
 
@@ -72,6 +73,7 @@ export function useAccounts(deviceId: string) {
       const res = await fetch(`/api/accounts/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete');
       setAccounts(prev => prev.filter(acc => acc.id !== id));
+      deleteImage(id);
       toast.success('Đã xóa thành công');
     } catch (error) {
       console.error('Error deleting account:', error);
@@ -85,6 +87,7 @@ export function useAccounts(deviceId: string) {
       const res = await fetch(`/api/accounts/device/${deviceId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to clear');
       setAccounts([]);
+      clearAllImages();
       toast.success('Đã xóa tất cả');
     } catch (error) {
       console.error('Error clearing accounts:', error);

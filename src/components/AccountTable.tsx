@@ -1,5 +1,7 @@
-import { useState, useRef } from 'react';
-import { Pencil, Trash2, Check, X, Search, BadgeCheck } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Pencil, Trash2, Check, X, Search, BadgeCheck, Image as ImageIcon } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { getImage } from '@/lib/imageStorage';
 import {
   Table,
   TableBody,
@@ -30,6 +32,50 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
   const [dragSourceId, setDragSourceId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [swappedIds, setSwappedIds] = useState<string[]>([]);
+  const [previewAccount, setPreviewAccount] = useState<ExtractedAccount | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  useEffect(() => {
+    if (!previewAccount) {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+      return;
+    }
+    let revoked = false;
+    setPreviewLoading(true);
+    getImage(previewAccount.id).then(blob => {
+      if (revoked) return;
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        setPreviewUrl(url);
+      } else {
+        setPreviewUrl(null);
+      }
+      setPreviewLoading(false);
+    });
+    return () => { revoked = true; };
+  }, [previewAccount]);
+
+  // Compute duplicate keys for highlighting (in case API returned dups)
+  const dupCount = new Map<string, number>();
+  accounts.forEach(a => {
+    const k = `${a.full_name.trim().toLowerCase().replace(/\s+/g, ' ')}|${a.account_number.replace(/\s/g, '')}`;
+    dupCount.set(k, (dupCount.get(k) || 0) + 1);
+  });
+  const isDuplicate = (a: ExtractedAccount) => {
+    const k = `${a.full_name.trim().toLowerCase().replace(/\s+/g, ' ')}|${a.account_number.replace(/\s/g, '')}`;
+    return (dupCount.get(k) || 0) > 1;
+  };
+
+  const formatTime = (iso: string) => {
+    try {
+      const d = new Date(iso);
+      return d.toLocaleString('vi-VN', { hour12: false });
+    } catch {
+      return iso;
+    }
+  };
 
   const filteredAccounts = accounts.filter(account =>
     account.account_number.includes(searchTerm) ||
@@ -126,20 +172,24 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
               <TableHead>Số tài khoản</TableHead>
               <TableHead>Mã giới thiệu</TableHead>
               <TableHead>Họ và tên (Nội dung)</TableHead>
+              <TableHead className="w-40">Thời gian quét</TableHead>
               <TableHead className="w-32">Trạng thái</TableHead>
-              <TableHead className="w-24 text-right">Thao tác</TableHead>
+              <TableHead className="w-32 text-right">Thao tác</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredAccounts.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                   {searchTerm ? 'Không tìm thấy kết quả' : 'Chưa có dữ liệu. Tải ảnh lên để bắt đầu.'}
                 </TableCell>
               </TableRow>
             ) : (
               filteredAccounts.map((account, index) => (
-                <TableRow key={account.id}>
+                <TableRow
+                  key={account.id}
+                  className={isDuplicate(account) ? 'bg-amber-50 dark:bg-amber-950/20' : undefined}
+                >
                   <TableCell className="font-medium">{index + 1}</TableCell>
                   <TableCell className="font-mono">
                     {editingId === account.id ? (
@@ -188,7 +238,19 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
                       </div>
                     )}
                   </TableCell>
-                  <TableCell>{getStatusBadge(account.status)}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                    {account.created_at ? formatTime(account.created_at) : '—'}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1">
+                      {getStatusBadge(account.status)}
+                      {isDuplicate(account) && (
+                        <Badge variant="outline" className="border-amber-500 text-amber-700 dark:text-amber-400 text-[10px]">
+                          Trùng
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-right">
                     {editingId === account.id ? (
                       <div className="flex gap-1 justify-end">
@@ -201,6 +263,15 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
                       </div>
                     ) : (
                       <div className="flex gap-1 justify-end">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => setPreviewAccount(account)}
+                          title="Xem ảnh đã quét"
+                          data-testid={`button-view-image-${account.id}`}
+                        >
+                          <ImageIcon className="w-4 h-4" />
+                        </Button>
                         <Button size="icon" variant="ghost" onClick={() => startEditing(account)}>
                           <Pencil className="w-4 h-4" />
                         </Button>
@@ -216,6 +287,27 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
           </TableBody>
         </Table>
       </div>
+
+      <Dialog open={!!previewAccount} onOpenChange={(o) => !o && setPreviewAccount(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle className="truncate pr-8">
+              {previewAccount?.full_name} — {previewAccount?.account_number}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="bg-muted/50 rounded-lg p-2 overflow-auto max-h-[70vh] flex items-center justify-center min-h-[200px]">
+            {previewLoading ? (
+              <p className="text-sm text-muted-foreground">Đang tải ảnh...</p>
+            ) : previewUrl ? (
+              <img src={previewUrl} alt="Ảnh đã quét" className="w-full h-auto object-contain" />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Không có ảnh đã lưu cho dòng này (có thể được nhập thủ công, từ Excel, hoặc dữ liệu chia sẻ).
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
