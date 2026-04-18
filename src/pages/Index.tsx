@@ -83,8 +83,16 @@ const Index = () => {
         {/* Results Table */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
+            <CardTitle className="flex flex-wrap items-center justify-between gap-2">
               <span>Danh sách tài khoản ({accounts.length})</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <ShareButton
+                  shareCode={shareCode}
+                  isGenerating={isGenerating}
+                  onGenerateLink={generateShareLink}
+                />
+                <ExportButtons accounts={accounts} onClearAll={clearAllAccounts} />
+              </div>
             </CardTitle>
           </CardHeader>
           <CardContent>
