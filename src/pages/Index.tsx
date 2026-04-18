@@ -5,6 +5,7 @@ import { ImageUploader } from '@/components/ImageUploader';
 import { ProcessingStatus } from '@/components/ProcessingStatus';
 import { AccountTable } from '@/components/AccountTable';
 import { ExportButtons } from '@/components/ExportButtons';
+import { ImportExcelButton } from '@/components/ImportExcelButton';
 import { FailedImagesList } from '@/components/FailedImagesList';
 import { ShareButton } from '@/components/ShareButton';
 import { useDeviceId } from '@/hooks/useDeviceId';
@@ -91,6 +92,7 @@ const Index = () => {
                   isGenerating={isGenerating}
                   onGenerateLink={generateShareLink}
                 />
+                <ImportExcelButton existingAccounts={accounts} onImport={addAccount} />
                 <ExportButtons accounts={accounts} onClearAll={clearAllAccounts} />
               </div>
             </CardTitle>
