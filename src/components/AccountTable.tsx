@@ -173,7 +173,7 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
               <TableHead>Mã giới thiệu</TableHead>
               <TableHead>Họ và tên (Nội dung)</TableHead>
               <TableHead className="w-40">Thời gian quét</TableHead>
-              <TableHead className="w-32">Trạng thái</TableHead>
+              <TableHead className="w-28">Giờ trong ảnh</TableHead>
               <TableHead className="w-32 text-right">Thao tác</TableHead>
             </TableRow>
           </TableHeader>
@@ -242,8 +242,23 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
                     {account.created_at ? formatTime(account.created_at) : '—'}
                   </TableCell>
                   <TableCell>
-                    <div className="flex flex-col gap-1">
-                      {getStatusBadge(account.status)}
+                    <div className="flex flex-col gap-1 items-start">
+                      {account.image_time ? (
+                        <span
+                          className="font-mono text-sm font-medium"
+                          data-testid={`text-image-time-${account.id}`}
+                        >
+                          {account.image_time}
+                        </span>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="border-muted-foreground/40 text-muted-foreground font-mono text-xs"
+                          data-testid={`text-image-time-${account.id}`}
+                        >
+                          NO
+                        </Badge>
+                      )}
                       {isDuplicate(account) && (
                         <Badge variant="outline" className="border-amber-500 text-amber-700 dark:text-amber-400 text-[10px]">
                           Trùng

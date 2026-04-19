@@ -38,6 +38,7 @@ export function useAccounts(deviceId: string) {
           accountNumber: result.accountNumber.replace(/\s/g, ''),
           referralCode: result.referralCode || '',
           senderName: result.senderName || result.fullName || '',
+          imageTime: result.imageTime || '',
         }),
       });
       if (!res.ok) throw new Error('Failed to add');

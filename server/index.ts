@@ -38,7 +38,7 @@ app.get("/api/accounts/:deviceId", async (req, res) => {
 
 app.post("/api/accounts", async (req, res) => {
   try {
-    const { deviceId, fullName, accountNumber, referralCode, senderName } = req.body;
+    const { deviceId, fullName, accountNumber, referralCode, senderName, imageTime } = req.body;
     if (!deviceId || !fullName || !accountNumber) {
       return res.status(400).json({ error: "Missing required fields" });
     }
@@ -51,6 +51,7 @@ app.post("/api/accounts", async (req, res) => {
         referral_code: referralCode || "",
         sender_name: senderName || "",
         status: "verified",
+        image_time: imageTime || "",
       })
       .returning();
     res.json(account);
@@ -190,6 +191,7 @@ Nhiệm vụ của bạn:
    - accountNumber: nội dung hiển thị tại ô "Số tài khoản" / "STK" / "Tới tài khoản" — LẤY NGUYÊN VĂN những gì hiển thị, kể cả khi đó là chuỗi chữ tiếng Việt như "Số Ngẫu Nhiên", "Số ngẫu nhiên", một alias như "vidi.username", hay chuỗi chữ-số bất kỳ. Chỉ loại bỏ dấu cách thừa, KHÔNG bỏ chữ cái, KHÔNG dịch, KHÔNG suy đoán.
    - referralCode: mã giới thiệu (nếu có, nếu không thì "")
    - senderName: tên lấy từ dòng "Nội dung"/"Lời nhắn"/"Nội dung chuyển tiền" (nếu có)
+   - imageTime: GIỜ hiển thị trên thanh trạng thái phía trên cùng của ảnh chụp màn hình điện thoại (ví dụ "10:57", "9:30", "21:05"). Đây thường là góc trên BÊN TRÁI (iPhone) hoặc BÊN PHẢI (Android) của ảnh, nằm cạnh icon sóng/wifi/pin. Trả về nguyên văn dạng "HH:MM" (24h hoặc có chữ AM/PM nếu có). Nếu không thấy giờ trên thanh trạng thái, trả "".
 
 QUY TẮC BẮT BUỘC:
 1. Nếu ảnh là biên lai chuyển tiền có cả "Từ tài khoản" và "Tới tài khoản": LUÔN lấy thông tin từ phần "Tới tài khoản" (người nhận). fullName = tên người nhận, accountNumber = số tài khoản người nhận.
@@ -200,7 +202,7 @@ QUY TẮC BẮT BUỘC:
 
 Trả về JSON theo format:
 {
-  "results": [{"fullName": "...", "accountNumber": "...", "referralCode": "...", "senderName": "..."}]
+  "results": [{"fullName": "...", "accountNumber": "...", "referralCode": "...", "senderName": "...", "imageTime": "..."}]
 }`;
 
     const callAI = async () => {

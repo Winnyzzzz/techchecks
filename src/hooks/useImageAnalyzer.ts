@@ -123,6 +123,7 @@ export function useImageAnalyzer(
             if (result.fullName && result.accountNumber) {
               result.referralCode = result.referralCode || '';
               result.senderName = result.senderName || '';
+              result.imageTime = result.imageTime || '';
 
               const key = dupKey(result.fullName, result.accountNumber);
               const prevFile = seenInBatch.get(key);
