@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Pencil, Trash2, Check, X, Search, BadgeCheck, Image as ImageIcon } from 'lucide-react';
+import { Pencil, Trash2, Check, X, Search, BadgeCheck, Image as ImageIcon, ArrowUp, ArrowDown } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { getImage } from '@/lib/imageStorage';
 import {
@@ -35,6 +35,7 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
   const [previewAccount, setPreviewAccount] = useState<ExtractedAccount | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [imageTimeSort, setImageTimeSort] = useState<'none' | 'desc' | 'asc'>('none');
 
   useEffect(() => {
     if (!previewAccount) {
@@ -82,6 +83,37 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
     account.referral_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
     account.sender_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Parse "HH:MM" (also handles "H:MM AM/PM") into total minutes; returns -1 if invalid
+  const parseImageTime = (s: string): number => {
+    if (!s) return -1;
+    const t = s.trim().toUpperCase();
+    const m = t.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/);
+    if (!m) return -1;
+    let h = parseInt(m[1], 10);
+    const min = parseInt(m[2], 10);
+    if (isNaN(h) || isNaN(min) || min > 59) return -1;
+    if (m[3] === 'PM' && h < 12) h += 12;
+    if (m[3] === 'AM' && h === 12) h = 0;
+    if (h > 23) return -1;
+    return h * 60 + min;
+  };
+
+  const sortedAccounts = imageTimeSort === 'none'
+    ? filteredAccounts
+    : [...filteredAccounts].sort((a, b) => {
+        const ta = parseImageTime(a.image_time);
+        const tb = parseImageTime(b.image_time);
+        // Push entries without a valid time to the bottom in both directions
+        if (ta === -1 && tb === -1) return 0;
+        if (ta === -1) return 1;
+        if (tb === -1) return -1;
+        return imageTimeSort === 'desc' ? tb - ta : ta - tb;
+      });
+
+  const toggleImageTimeSort = () => {
+    setImageTimeSort(prev => (prev === 'none' ? 'desc' : prev === 'desc' ? 'asc' : 'none'));
+  };
 
   const startEditing = (account: ExtractedAccount) => {
     setEditingId(account.id);
@@ -173,19 +205,42 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
               <TableHead>Mã giới thiệu</TableHead>
               <TableHead>Họ và tên (Nội dung)</TableHead>
               <TableHead className="w-40">Thời gian quét</TableHead>
-              <TableHead className="w-28">Giờ trong ảnh</TableHead>
+              <TableHead className="w-32">
+                <button
+                  type="button"
+                  onClick={toggleImageTimeSort}
+                  className="inline-flex items-center gap-1 hover:text-primary transition-colors"
+                  title={
+                    imageTimeSort === 'none'
+                      ? 'Bấm để sắp xếp theo giờ mới nhất'
+                      : imageTimeSort === 'desc'
+                      ? 'Đang sắp xếp mới nhất → cũ nhất. Bấm để đổi sang cũ nhất → mới nhất'
+                      : 'Đang sắp xếp cũ nhất → mới nhất. Bấm để bỏ sắp xếp'
+                  }
+                  data-testid="button-sort-image-time"
+                >
+                  <span>Giờ trong ảnh</span>
+                  {imageTimeSort === 'desc' ? (
+                    <ArrowDown className="w-3.5 h-3.5 text-primary" />
+                  ) : imageTimeSort === 'asc' ? (
+                    <ArrowUp className="w-3.5 h-3.5 text-primary" />
+                  ) : (
+                    <ArrowUp className="w-3.5 h-3.5 opacity-50" />
+                  )}
+                </button>
+              </TableHead>
               <TableHead className="w-32 text-right">Thao tác</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredAccounts.length === 0 ? (
+            {sortedAccounts.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                   {searchTerm ? 'Không tìm thấy kết quả' : 'Chưa có dữ liệu. Tải ảnh lên để bắt đầu.'}
                 </TableCell>
               </TableRow>
             ) : (
-              filteredAccounts.map((account, index) => (
+              sortedAccounts.map((account, index) => (
                 <TableRow
                   key={account.id}
                   className={isDuplicate(account) ? 'bg-amber-50 dark:bg-amber-950/20' : undefined}
