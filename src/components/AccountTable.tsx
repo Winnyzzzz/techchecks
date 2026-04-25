@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ExtractedAccount } from '@/types/account';
+import { useReferralConfig } from '@/hooks/useReferralConfig';
 import { toast } from 'sonner';
 
 interface AccountTableProps {
@@ -36,6 +37,7 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [imageTimeSort, setImageTimeSort] = useState<'none' | 'desc' | 'asc'>('none');
+  const { referralCode: configuredReferral } = useReferralConfig();
 
   useEffect(() => {
     if (!previewAccount) {
@@ -259,7 +261,7 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
                     ) : account.referral_code ? (
                       <span className="inline-flex items-center gap-1">
                         {account.referral_code}
-                        {account.referral_code.trim().toUpperCase() === 'PAPER202214' && (
+                        {account.referral_code.trim().toUpperCase() === configuredReferral && (
                           <BadgeCheck className="w-4 h-4 text-primary" aria-label="Mã chính xác" />
                         )}
                       </span>

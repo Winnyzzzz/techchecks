@@ -9,10 +9,12 @@ import { ImportExcelButton } from '@/components/ImportExcelButton';
 import { AddAccountButton } from '@/components/AddAccountButton';
 import { FailedImagesList } from '@/components/FailedImagesList';
 import { ShareButton } from '@/components/ShareButton';
+import { ReferralCodeSettings } from '@/components/ReferralCodeSettings';
 import { useDeviceId } from '@/hooks/useDeviceId';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useImageAnalyzer } from '@/hooks/useImageAnalyzer';
 import { useShareLink } from '@/hooks/useShareLink';
+import { useReferralConfig } from '@/hooks/useReferralConfig';
 import { toast } from 'sonner';
 
 const Index = () => {
@@ -22,7 +24,7 @@ const Index = () => {
   const { shareCode, isGenerating, generateShareLink, getDeviceIdFromCode } = useShareLink(deviceId);
   const [isLoadingShared, setIsLoadingShared] = useState(false);
 
-  const CORRECT_REFERRAL = 'PAPER202214';
+  const { referralCode: CORRECT_REFERRAL } = useReferralConfig();
   const referralStats = useMemo(() => {
     const missingList: typeof accounts = [];
     const wrongList: typeof accounts = [];
@@ -38,7 +40,7 @@ const Index = () => {
       missingList,
       wrongList,
     };
-  }, [accounts]);
+  }, [accounts, CORRECT_REFERRAL]);
 
   // Handle shared link on mount
   useEffect(() => {
@@ -164,6 +166,7 @@ const Index = () => {
             <CardTitle className="flex flex-wrap items-center justify-between gap-2">
               <span>Danh sách tài khoản ({accounts.length})</span>
               <div className="flex flex-wrap items-center gap-2">
+                <ReferralCodeSettings />
                 <ShareButton
                   shareCode={shareCode}
                   isGenerating={isGenerating}
