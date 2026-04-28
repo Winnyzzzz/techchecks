@@ -33,6 +33,12 @@ export function useAccounts(deviceId: string) {
   const addAccount = useCallback(async (result: AIExtractionResult): Promise<ExtractedAccount | null> => {
     if (!deviceId) return null;
     try {
+      const folder = activeFolderRef.current || '';
+      // When an active folder is selected, the folder name IS the sender — override AI extraction.
+      // This way picking folder "Hào" guarantees every scanned row is saved as sender "Hào".
+      const senderName = folder
+        ? folder
+        : (result.senderName || result.fullName || '');
       const res = await fetch('/api/accounts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -41,9 +47,9 @@ export function useAccounts(deviceId: string) {
           fullName: result.fullName,
           accountNumber: result.accountNumber.replace(/\s/g, ''),
           referralCode: result.referralCode || '',
-          senderName: result.senderName || result.fullName || '',
+          senderName,
           imageTime: result.imageTime || '',
-          folder: activeFolderRef.current || '',
+          folder,
         }),
       });
       if (!res.ok) throw new Error('Failed to add');
