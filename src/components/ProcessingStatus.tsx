@@ -1,13 +1,27 @@
-import { Loader2 } from 'lucide-react';
+import { Loader2, Bot } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+
+interface ProviderUsedInfo {
+  providerId: string;
+  label: string;
+  model: string;
+  keyLabel?: string;
+}
 
 interface ProcessingStatusProps {
   current: number;
   total: number;
   currentImageUrl?: string;
+  providerUsed?: ProviderUsedInfo;
 }
 
-export function ProcessingStatus({ current, total, currentImageUrl }: ProcessingStatusProps) {
+export function ProcessingStatus({
+  current,
+  total,
+  currentImageUrl,
+  providerUsed,
+}: ProcessingStatusProps) {
   const progress = total > 0 ? (current / total) * 100 : 0;
 
   return (
@@ -23,15 +37,28 @@ export function ProcessingStatus({ current, total, currentImageUrl }: Processing
           </div>
         )}
         <div className="flex-1">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
             <Loader2 className="w-5 h-5 animate-spin text-primary" />
             <span className="font-medium text-foreground">
               Đang phân tích ảnh {current}/{total}
             </span>
+            {providerUsed && (
+              <Badge
+                variant="secondary"
+                className="ml-auto inline-flex items-center gap-1"
+                data-testid="badge-provider-used"
+              >
+                <Bot className="w-3 h-3" />
+                {providerUsed.label}
+                {providerUsed.keyLabel ? ` · ${providerUsed.keyLabel}` : ''}
+              </Badge>
+            )}
           </div>
           <Progress value={progress} className="h-2" />
           <p className="text-sm text-muted-foreground mt-2">
-            AI đang đọc và trích xuất thông tin từ ảnh...
+            {providerUsed
+              ? `${providerUsed.label} (${providerUsed.model}) đang đọc và trích xuất thông tin...`
+              : 'AI đang đọc và trích xuất thông tin từ ảnh...'}
           </p>
         </div>
       </div>

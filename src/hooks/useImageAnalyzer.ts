@@ -2,12 +2,21 @@ import { useState, useCallback } from 'react';
 import { AIExtractionResult, ExtractedAccount } from '@/types/account';
 import { toast } from 'sonner';
 import { saveImage } from '@/lib/imageStorage';
+import { getActiveProviderConfigs } from '@/hooks/useAIProviders';
+
+export interface ProviderUsedInfo {
+  providerId: string;
+  label: string;
+  model: string;
+  keyLabel?: string;
+}
 
 interface ProcessingState {
   isProcessing: boolean;
   current: number;
   total: number;
   currentImageUrl?: string;
+  providerUsed?: ProviderUsedInfo;
 }
 
 export interface FailedImage {
@@ -96,13 +105,36 @@ export function useImageAnalyzer(
 
       try {
         const base64 = await fileToBase64(file);
-        
+
+        const activeProviders = getActiveProviderConfigs().map(p => ({
+          providerId: p.providerId,
+          apiKey: p.apiKey,
+          model: p.model,
+          keyLabel: p.label,
+        }));
+
         const response = await fetch('/api/analyze-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageBase64: base64 }),
+          body: JSON.stringify({ imageBase64: base64, providers: activeProviders }),
         });
         const data = await response.json();
+
+        if (data?.providerUsed) {
+          setProcessingState(prev => ({ ...prev, providerUsed: data.providerUsed }));
+          if (Array.isArray(data.failovers) && data.failovers.length > 0) {
+            const failedNames = data.failovers
+              .map((a: any) => `${a.label}${a.keyLabel ? ` (${a.keyLabel})` : ''}`)
+              .join(', ');
+            toast.info(
+              `Đã chuyển sang ${data.providerUsed.label}${data.providerUsed.keyLabel ? ` (${data.providerUsed.keyLabel})` : ''}`,
+              {
+                description: `Provider lỗi: ${failedNames}`,
+                duration: 4500,
+              }
+            );
+          }
+        }
 
         if (!response.ok) {
           console.error('API error:', response.status, data);

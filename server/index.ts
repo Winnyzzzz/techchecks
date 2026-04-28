@@ -2,18 +2,10 @@ import express from "express";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { GoogleGenAI } from "@google/genai";
 import { db } from "./db.js";
 import { extractedAccounts, shareLinks } from "../shared/schema.js";
 import { eq, desc } from "drizzle-orm";
-
-const ai = new GoogleGenAI({
-  apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
-  httpOptions: {
-    apiVersion: "",
-    baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
-  },
-});
+import { PROVIDERS, PROVIDER_PUBLIC_INFO, ProviderError } from "./aiProviders.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -206,77 +198,169 @@ Trả về JSON theo format:
   "results": [{"fullName": "...", "accountNumber": "...", "referralCode": "...", "senderName": "...", "imageTime": "..."}]
 }`;
 
-    const callAI = async () => {
-      const timeoutMs = 45000;
-      return await Promise.race([
-        ai.models.generateContent({
-          model: "gemini-2.5-flash",
-          contents: [
-            {
-              role: "user",
-              parts: [
-                { text: "Hãy phân tích ảnh này và trích xuất tên đăng nhập, số tài khoản ngân hàng và mã giới thiệu. Trả về kết quả dưới dạng JSON." },
-                { inlineData: { mimeType, data: base64Data } },
-              ],
-            },
-          ],
-          config: {
-            systemInstruction: systemPrompt,
-            responseMimeType: "application/json",
-            maxOutputTokens: 8192,
-            temperature: 0.1,
-          },
-        }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("AI request timeout")), timeoutMs)),
-      ]) as any;
+    const userText = "Hãy phân tích ảnh này và trích xuất tên đăng nhập, số tài khoản ngân hàng và mã giới thiệu. Trả về kết quả dưới dạng JSON.";
+
+    type ChainEntry = {
+      providerId: string;
+      apiKey: string;
+      model: string;
+      label: string;
+      keyLabel?: string;
+      baseUrl?: string;
     };
+    const chain: ChainEntry[] = [];
 
-    let lastErr: any = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    const clientProviders = Array.isArray(req.body?.providers) ? req.body.providers : [];
+    for (const p of clientProviders) {
+      if (!p || typeof p !== "object") continue;
+      const def = PROVIDERS[String(p.providerId || "")];
+      if (!def) continue;
+      const apiKey = String(p.apiKey || "").trim();
+      if (!apiKey) continue;
+      chain.push({
+        providerId: def.id,
+        apiKey,
+        model: String(p.model || def.defaultModel),
+        label: def.label,
+        keyLabel: typeof p.keyLabel === "string" && p.keyLabel.trim() ? p.keyLabel.trim() : undefined,
+      });
+    }
+
+    if (chain.length === 0 && process.env.AI_INTEGRATIONS_GEMINI_API_KEY) {
+      chain.push({
+        providerId: "gemini",
+        apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
+        model: "gemini-2.5-flash",
+        label: "Google Gemini (mặc định)",
+        baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
+      });
+    }
+
+    if (chain.length === 0) {
+      return res.status(400).json({
+        error: "Chưa cấu hình API key nào. Hãy mở 'AI Providers' để thêm.",
+      });
+    }
+
+    const attempts: { providerId: string; label: string; keyLabel?: string; model: string; error: string; code: string }[] = [];
+
+    for (const p of chain) {
+      const def = PROVIDERS[p.providerId];
       try {
-        const response = await callAI();
-        const content = response.text || "";
-        if (!content) {
-          lastErr = new Error("empty response");
-          continue;
-        }
+        const { text } = await def.call({
+          base64: base64Data,
+          mimeType,
+          systemPrompt,
+          userText,
+          apiKey: p.apiKey,
+          model: p.model,
+          timeoutMs: 45000,
+          baseUrl: p.baseUrl,
+        });
 
-        let parsedResult;
+        let parsedResult: any;
         try {
-          parsedResult = JSON.parse(content);
+          parsedResult = JSON.parse(text);
         } catch {
-          const jsonMatch = content.match(/\{[\s\S]*\}/);
+          const jsonMatch = text.match(/\{[\s\S]*\}/);
           parsedResult = jsonMatch ? JSON.parse(jsonMatch[0]) : { results: [] };
         }
 
-        return res.json(parsedResult);
-      } catch (aiError: any) {
-        lastErr = aiError;
-        const msg = String(aiError?.message || "");
-        const isRetryable =
-          msg.includes("timeout") ||
-          msg.includes("429") ||
-          msg.toLowerCase().includes("rate") ||
-          msg.includes("500") ||
-          msg.includes("503") ||
-          msg.toLowerCase().includes("unavailable");
-        console.error(`AI attempt ${attempt + 1} failed:`, msg);
-        if (!isRetryable) break;
-        await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+        return res.json({
+          ...parsedResult,
+          providerUsed: {
+            providerId: p.providerId,
+            label: p.label,
+            model: p.model,
+            keyLabel: p.keyLabel,
+          },
+          failovers: attempts,
+        });
+      } catch (err: any) {
+        const code: string = err instanceof ProviderError ? err.code : "UNKNOWN";
+        const msg = String(err?.message || err).slice(0, 400);
+        console.error(`Provider ${p.label} (${p.model}) failed [${code}]: ${msg}`);
+        attempts.push({
+          providerId: p.providerId,
+          label: p.label,
+          keyLabel: p.keyLabel,
+          model: p.model,
+          error: msg,
+          code,
+        });
+        // Always try the next provider — a 400 from one provider may simply
+        // mean an unsupported model / image format / request schema for that
+        // provider, while the next provider could still succeed.
       }
     }
 
-    const finalMsg = String(lastErr?.message || "");
-    if (finalMsg.includes("429") || finalMsg.toLowerCase().includes("rate")) {
-      return res.status(429).json({ error: "Đã vượt quá giới hạn yêu cầu. Vui lòng thử lại sau." });
-    }
-    if (finalMsg.includes("timeout")) {
-      return res.status(504).json({ error: "AI phản hồi quá lâu, vui lòng thử lại" });
-    }
-    return res.status(500).json({ error: "Lỗi khi phân tích ảnh" });
+    // Choose the most actionable HTTP status from the chain.
+    const codes = attempts.map((a) => a.code);
+    const allRateLimit = codes.length > 0 && codes.every((c) => c === "RATE_LIMIT");
+    const allTimeout = codes.length > 0 && codes.every((c) => c === "TIMEOUT");
+    const httpStatus = allRateLimit ? 429 : allTimeout ? 504 : 502;
+    return res.status(httpStatus).json({
+      error:
+        chain.length > 1
+          ? `Tất cả ${chain.length} nhà cung cấp đều thất bại. Hãy kiểm tra API key/model hoặc thêm provider khác.`
+          : `${attempts[0]?.label || "AI"} thất bại: ${attempts[0]?.error || "lỗi không xác định"}`,
+      code: codes[codes.length - 1] || "UNKNOWN",
+      failovers: attempts,
+    });
   } catch (error) {
     console.error("analyze-image error:", error);
     res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+app.get("/api/providers", (_req, res) => {
+  res.json(PROVIDER_PUBLIC_INFO);
+});
+
+app.post("/api/test-provider", async (req, res) => {
+  try {
+    const { providerId, apiKey, model } = req.body || {};
+    if (!providerId || !apiKey) {
+      return res.status(400).json({ ok: false, error: "Thiếu providerId hoặc apiKey" });
+    }
+    const def = PROVIDERS[String(providerId)];
+    if (!def) {
+      return res.status(400).json({ ok: false, error: `Provider không hợp lệ: ${providerId}` });
+    }
+
+    // Tiny 1x1 white PNG used as a probe image
+    const tinyPng =
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+
+    try {
+      await def.call({
+        base64: tinyPng,
+        mimeType: "image/png",
+        systemPrompt: "Trả về duy nhất JSON: {\"ok\":true}",
+        userText: "ping",
+        apiKey: String(apiKey),
+        model: String(model || def.defaultModel),
+        timeoutMs: 20000,
+      });
+      return res.json({
+        ok: true,
+        provider: def.label,
+        model: model || def.defaultModel,
+      });
+    } catch (err: any) {
+      const code: string = err instanceof ProviderError ? err.code : "UNKNOWN";
+      return res.json({
+        ok: false,
+        provider: def.label,
+        code,
+        error: String(err?.message || err).slice(0, 400),
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
   }
 });
 

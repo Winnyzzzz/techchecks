@@ -10,6 +10,7 @@ import { AddAccountButton } from '@/components/AddAccountButton';
 import { FailedImagesList } from '@/components/FailedImagesList';
 import { ShareButton } from '@/components/ShareButton';
 import { ReferralCodeSettings } from '@/components/ReferralCodeSettings';
+import { AIProviderSettings } from '@/components/AIProviderSettings';
 import { FolderManager } from '@/components/FolderManager';
 import { useDeviceId } from '@/hooks/useDeviceId';
 import { useAccounts } from '@/hooks/useAccounts';
@@ -94,6 +95,7 @@ const Index = () => {
             current={processingState.current}
             total={processingState.total}
             currentImageUrl={processingState.currentImageUrl}
+            providerUsed={processingState.providerUsed}
           />
         )}
 
@@ -168,6 +170,7 @@ const Index = () => {
             <CardTitle className="flex flex-wrap items-center justify-between gap-2">
               <span>Danh sách tài khoản ({accounts.length})</span>
               <div className="flex flex-wrap items-center gap-2">
+                <AIProviderSettings />
                 <ReferralCodeSettings />
                 <ShareButton
                   shareCode={shareCode}
