@@ -26,6 +26,8 @@ fullName, accountNumber, referralCode, senderName, imageTime.
 - Trả thêm `providerUsed` và `failovers[]` để frontend hiển thị badge và toast "Đã chuyển sang ...".
 - Khi không có provider nào (chuỗi rỗng), fallback dùng env-based Gemini (`AI_INTEGRATIONS_GEMINI_API_KEY` + proxy `AI_INTEGRATIONS_GEMINI_BASE_URL`). Vì SDK `@google/genai` bỏ qua `httpOptions.baseUrl` khi có apiKey constructor → adapter dùng direct fetch khi `baseUrl` được truyền.
 - Endpoint phụ: `GET /api/providers` (metadata cho UI), `POST /api/test-provider` (probe ảnh 1×1).
+- Prompt rule #6 trong `server/index.ts` cấm AI tự thêm/bớt dấu tiếng Việt vào fullName/senderName (ví dụ Mistral hay "sửa" "NGUYEN VAN A" thành "NGUYỄN VĂN A" — đã chặn).
+- Danh sách model OpenRouter free được lấy từ thực tế (Apr 2026): Gemma 3/4, Nemotron, Baidu Qianfan OCR. Llama-4 free đã bị OpenRouter gỡ — không còn dùng được.
 
 ## File chính
 - `server/aiProviders.ts` — registry & adapters (Gemini direct + OpenAI-compatible cho Groq/OpenRouter/Mistral)

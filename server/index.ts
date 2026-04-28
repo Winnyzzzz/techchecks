@@ -192,6 +192,7 @@ QUY TẮC BẮT BUỘC:
 3. TUYỆT ĐỐI KHÔNG copy fullName sang senderName.
 4. Số tài khoản: lấy NGUYÊN VĂN nội dung hiển thị tại vị trí ô số tài khoản (kể cả chữ tiếng Việt như "Số Ngẫu Nhiên"). Chỉ loại bỏ dấu cách thừa giữa các ký tự, KHÔNG được lọc bỏ chữ cái, KHÔNG được dịch, KHÔNG được thay thế.
 5. Nếu không tìm thấy thông tin, trả về mảng rỗng.
+6. **GIỮ NGUYÊN CHÍNH TẢ — KHÔNG TỰ Ý THÊM/BỚT DẤU TIẾNG VIỆT**: Với cả fullName và senderName, copy CHÍNH XÁC ký tự hiển thị trong ảnh. Nếu ảnh ghi "NGUYEN VAN A" (không dấu), trả về "NGUYEN VAN A" — TUYỆT ĐỐI không được "sửa" thành "NGUYỄN VĂN A". Nếu ảnh ghi "Tran thi B" (chữ thường), trả về đúng "Tran thi B". Giữ nguyên hoa/thường, có dấu/không dấu, có khoảng cách thừa hay không — đúng như hiển thị. Đây là quy tắc quan trọng nhất, vi phạm sẽ làm hỏng dữ liệu của người dùng.
 
 Trả về JSON theo format:
 {
