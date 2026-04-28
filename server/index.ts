@@ -5,7 +5,15 @@ import { fileURLToPath } from "url";
 import { db } from "./db.js";
 import { extractedAccounts, shareLinks } from "../shared/schema.js";
 import { eq, desc } from "drizzle-orm";
-import { PROVIDERS, PROVIDER_PUBLIC_INFO, ProviderError } from "./aiProviders.js";
+import {
+  PROVIDERS,
+  PROVIDER_PUBLIC_INFO,
+  ProviderError,
+  checkAvailability,
+  recordRequest,
+  setCooldown,
+  clearCooldown,
+} from "./aiProviders.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -243,10 +251,51 @@ Trả về JSON theo format:
       });
     }
 
-    const attempts: { providerId: string; label: string; keyLabel?: string; model: string; error: string; code: string }[] = [];
+    type AttemptInfo = {
+      providerId: string;
+      label: string;
+      keyLabel?: string;
+      model: string;
+      error: string;
+      code: string;
+    };
+    const attempts: AttemptInfo[] = [];
+    const skipped: { providerId: string; label: string; keyLabel?: string; model: string; reason: string; retryAfterMs?: number }[] = [];
 
+    // Build effective chain: drop providers currently on cooldown OR exceeding
+    // their per-minute free-tier quota. If ALL providers are blocked, fall
+    // back to the original chain anyway so the user still gets an answer
+    // (cooldown might have just elapsed by the time we send).
+    const filtered: ChainEntry[] = [];
     for (const p of chain) {
       const def = PROVIDERS[p.providerId];
+      const avail = checkAvailability(p.providerId, p.apiKey, def?.freeRpm);
+      if (avail.available) {
+        filtered.push(p);
+      } else {
+        skipped.push({
+          providerId: p.providerId,
+          label: p.label,
+          keyLabel: p.keyLabel,
+          model: p.model,
+          reason: avail.reason || "đang nghỉ",
+          retryAfterMs: avail.retryAfterMs,
+        });
+      }
+    }
+    const effectiveChain = filtered.length > 0 ? filtered : chain;
+    if (filtered.length === 0 && skipped.length > 0) {
+      console.warn(
+        `All ${chain.length} providers are throttled — trying anyway. Skipped:`,
+        skipped.map((s) => `${s.label}(${Math.round((s.retryAfterMs || 0) / 1000)}s: ${s.reason})`).join(", "),
+      );
+    }
+
+    for (const p of effectiveChain) {
+      const def = PROVIDERS[p.providerId];
+      // Record the attempt timestamp BEFORE calling so concurrent requests
+      // see this provider as one slot closer to its RPM limit.
+      recordRequest(p.providerId, p.apiKey);
       try {
         const { text } = await def.call({
           base64: base64Data,
@@ -258,6 +307,9 @@ Trả về JSON theo format:
           timeoutMs: 45000,
           baseUrl: p.baseUrl,
         });
+
+        // Successful call → clear any stale cooldown (provider is healthy again).
+        clearCooldown(p.providerId, p.apiKey);
 
         let parsedResult: any;
         try {
@@ -276,10 +328,12 @@ Trả về JSON theo format:
             keyLabel: p.keyLabel,
           },
           failovers: attempts,
+          skipped,
         });
       } catch (err: any) {
         const code: string = err instanceof ProviderError ? err.code : "UNKNOWN";
         const msg = String(err?.message || err).slice(0, 400);
+        const retryAfterMs = err instanceof ProviderError ? err.retryAfterMs : undefined;
         console.error(`Provider ${p.label} (${p.model}) failed [${code}]: ${msg}`);
         attempts.push({
           providerId: p.providerId,
@@ -289,9 +343,19 @@ Trả về JSON theo format:
           error: msg,
           code,
         });
-        // Always try the next provider — a 400 from one provider may simply
-        // mean an unsupported model / image format / request schema for that
-        // provider, while the next provider could still succeed.
+
+        // Set cooldown so future requests skip this provider for a while.
+        if (code === "RATE_LIMIT") {
+          setCooldown(p.providerId, p.apiKey, retryAfterMs ?? 60_000, "Rate limit (429)");
+        } else if (code === "AUTH") {
+          setCooldown(p.providerId, p.apiKey, 5 * 60_000, "API key bị từ chối (401/403)");
+        } else if (code === "SERVER_ERROR") {
+          setCooldown(p.providerId, p.apiKey, retryAfterMs ?? 30_000, "Server provider lỗi (5xx)");
+        } else if (code === "TIMEOUT") {
+          setCooldown(p.providerId, p.apiKey, 15_000, "Provider timeout");
+        }
+        // BAD_REQUEST / EMPTY / UNKNOWN: don't cool down — likely tied to this
+        // specific request, not the provider's health.
       }
     }
 

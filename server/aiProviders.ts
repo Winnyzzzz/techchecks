@@ -12,11 +12,39 @@ export type ProviderErrorCode =
 export class ProviderError extends Error {
   code: ProviderErrorCode;
   status?: number;
-  constructor(code: ProviderErrorCode, message: string, status?: number) {
+  /** Hint from server (Retry-After header) telling us how long to back off, in ms. */
+  retryAfterMs?: number;
+  constructor(
+    code: ProviderErrorCode,
+    message: string,
+    status?: number,
+    retryAfterMs?: number,
+  ) {
     super(message);
     this.code = code;
     this.status = status;
+    this.retryAfterMs = retryAfterMs;
   }
+}
+
+/**
+ * Parse `Retry-After` header. Accepts either an integer number of seconds
+ * (RFC 7231) or an HTTP-date. Returns ms, capped between 1s and 5min.
+ */
+export function parseRetryAfter(headerValue: string | null): number | undefined {
+  if (!headerValue) return undefined;
+  const trimmed = headerValue.trim();
+  const seconds = Number(trimmed);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.min(Math.max(seconds * 1000, 1000), 5 * 60_000);
+  }
+  const date = new Date(trimmed);
+  const time = date.getTime();
+  if (Number.isFinite(time)) {
+    const diff = time - Date.now();
+    return Math.min(Math.max(diff, 1000), 5 * 60_000);
+  }
+  return undefined;
 }
 
 export interface ProviderInput {
@@ -38,7 +66,102 @@ export interface ProviderDef {
   signupUrl: string;
   models: string[];
   defaultModel: string;
+  /** Best-effort hint of free-tier requests per minute. Used for proactive throttling. */
+  freeRpm?: number;
   call: (input: ProviderInput) => Promise<{ text: string }>;
+}
+
+// ---------- Provider Health Tracking ----------
+// Tracks per-(provider+keyPrefix) state so we can:
+// 1. SKIP a provider that just returned 429 until its cooldown elapses (reactive).
+// 2. SKIP a provider that's about to exceed its known free-tier RPM (proactive).
+// In-memory only — keys are hashed by prefix so we never log/store the full key.
+
+interface HealthEntry {
+  cooldownUntil: number;
+  cooldownReason: string;
+  /** Timestamps (ms) of the last successful/attempted requests, sliding 60s window. */
+  recentTimestamps: number[];
+}
+
+const health = new Map<string, HealthEntry>();
+
+function healthKey(providerId: string, apiKey: string): string {
+  return `${providerId}:${apiKey.slice(0, 12)}`;
+}
+
+function getOrInit(providerId: string, apiKey: string): HealthEntry {
+  const k = healthKey(providerId, apiKey);
+  let entry = health.get(k);
+  if (!entry) {
+    entry = { cooldownUntil: 0, cooldownReason: "", recentTimestamps: [] };
+    health.set(k, entry);
+  }
+  return entry;
+}
+
+export interface AvailabilityResult {
+  available: boolean;
+  reason?: string;
+  retryAfterMs?: number;
+}
+
+export function checkAvailability(
+  providerId: string,
+  apiKey: string,
+  freeRpm?: number,
+): AvailabilityResult {
+  const entry = health.get(healthKey(providerId, apiKey));
+  const now = Date.now();
+  if (entry?.cooldownUntil && entry.cooldownUntil > now) {
+    return {
+      available: false,
+      reason: entry.cooldownReason || "đang nghỉ",
+      retryAfterMs: entry.cooldownUntil - now,
+    };
+  }
+  if (freeRpm && entry) {
+    entry.recentTimestamps = entry.recentTimestamps.filter((t) => t > now - 60_000);
+    if (entry.recentTimestamps.length >= freeRpm) {
+      const oldest = entry.recentTimestamps[0];
+      const waitMs = Math.max(1000, oldest + 60_000 - now);
+      return {
+        available: false,
+        reason: `Đã đạt ~${freeRpm} req/phút (giới hạn miễn phí)`,
+        retryAfterMs: waitMs,
+      };
+    }
+  }
+  return { available: true };
+}
+
+export function recordRequest(providerId: string, apiKey: string): void {
+  const entry = getOrInit(providerId, apiKey);
+  const now = Date.now();
+  entry.recentTimestamps.push(now);
+  // Cap memory: keep only last 200 entries per key.
+  if (entry.recentTimestamps.length > 200) {
+    entry.recentTimestamps = entry.recentTimestamps.slice(-200);
+  }
+}
+
+export function setCooldown(
+  providerId: string,
+  apiKey: string,
+  durationMs: number,
+  reason: string,
+): void {
+  const entry = getOrInit(providerId, apiKey);
+  entry.cooldownUntil = Date.now() + Math.max(1000, Math.min(durationMs, 5 * 60_000));
+  entry.cooldownReason = reason;
+}
+
+export function clearCooldown(providerId: string, apiKey: string): void {
+  const entry = health.get(healthKey(providerId, apiKey));
+  if (entry) {
+    entry.cooldownUntil = 0;
+    entry.cooldownReason = "";
+  }
 }
 
 const withTimeout = async <T,>(p: Promise<T>, ms: number): Promise<T> => {
@@ -104,11 +227,13 @@ async function callGeminiViaFetch(input: ProviderInput): Promise<{ text: string 
   if (!res.ok) {
     const txt = (await res.text().catch(() => "")).slice(0, 400);
     const status = res.status;
-    if (status === 429) throw new ProviderError("RATE_LIMIT", `429: ${txt}`, 429);
+    const retryAfter = parseRetryAfter(res.headers.get("retry-after"));
+    if (status === 429)
+      throw new ProviderError("RATE_LIMIT", `429: ${txt}`, 429, retryAfter);
     if (status === 401 || status === 403)
       throw new ProviderError("AUTH", `${status}: ${txt}`, status);
     if (status >= 500)
-      throw new ProviderError("SERVER_ERROR", `${status}: ${txt}`, status);
+      throw new ProviderError("SERVER_ERROR", `${status}: ${txt}`, status, retryAfter);
     if (status === 400) throw new ProviderError("BAD_REQUEST", `400: ${txt}`, 400);
     throw new ProviderError("UNKNOWN", `${status}: ${txt}`, status);
   }
@@ -208,11 +333,13 @@ function makeOpenAICompatCall(
       const txt = await res.text().catch(() => "");
       const status = res.status;
       const trimmed = txt.slice(0, 400);
-      if (status === 429) throw new ProviderError("RATE_LIMIT", `429: ${trimmed}`, 429);
+      const retryAfter = parseRetryAfter(res.headers.get("retry-after"));
+      if (status === 429)
+        throw new ProviderError("RATE_LIMIT", `429: ${trimmed}`, 429, retryAfter);
       if (status === 401 || status === 403)
         throw new ProviderError("AUTH", `${status}: ${trimmed}`, status);
       if (status >= 500)
-        throw new ProviderError("SERVER_ERROR", `${status}: ${trimmed}`, status);
+        throw new ProviderError("SERVER_ERROR", `${status}: ${trimmed}`, status, retryAfter);
       if (status === 400) throw new ProviderError("BAD_REQUEST", `400: ${trimmed}`, 400);
       throw new ProviderError("UNKNOWN", `${status}: ${trimmed}`, status);
     }
@@ -240,13 +367,14 @@ export const PROVIDERS: Record<string, ProviderDef> = {
     signupUrl: "https://aistudio.google.com/apikey",
     models: ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"],
     defaultModel: "gemini-2.5-flash",
+    freeRpm: 15,
     call: callGemini,
   },
   groq: {
     id: "groq",
     label: "Groq",
     description:
-      "Cực nhanh (300+ tokens/s). Free: ~1000 yêu cầu/ngày. Hỗ trợ Llama 4 / Llama 3.2 Vision.",
+      "Cực nhanh (300+ tokens/s). Free: ~30 yêu cầu/phút, ~1000/ngày. Hỗ trợ Llama 4 / Llama 3.2 Vision.",
     signupUrl: "https://console.groq.com/keys",
     models: [
       "meta-llama/llama-4-scout-17b-16e-instruct",
@@ -255,6 +383,7 @@ export const PROVIDERS: Record<string, ProviderDef> = {
       "llama-3.2-90b-vision-preview",
     ],
     defaultModel: "meta-llama/llama-4-scout-17b-16e-instruct",
+    freeRpm: 30,
     call: makeOpenAICompatCall("https://api.groq.com/openai/v1"),
   },
   openrouter: {
@@ -274,6 +403,7 @@ export const PROVIDERS: Record<string, ProviderDef> = {
       "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
     ],
     defaultModel: "google/gemma-3-27b-it:free",
+    freeRpm: 20,
     call: makeOpenAICompatCall("https://openrouter.ai/api/v1", {
       "HTTP-Referer": "https://replit.com",
       "X-Title": "Bank Transaction Analyzer",
@@ -287,6 +417,7 @@ export const PROVIDERS: Record<string, ProviderDef> = {
     signupUrl: "https://console.mistral.ai/api-keys",
     models: ["pixtral-12b-2409", "pixtral-large-latest"],
     defaultModel: "pixtral-12b-2409",
+    freeRpm: 60,
     call: makeOpenAICompatCall("https://api.mistral.ai/v1"),
   },
 };

@@ -29,6 +29,14 @@ fullName, accountNumber, referralCode, senderName, imageTime.
 - Prompt rule #6 trong `server/index.ts` cấm AI tự thêm/bớt dấu tiếng Việt vào fullName/senderName (ví dụ Mistral hay "sửa" "NGUYEN VAN A" thành "NGUYỄN VĂN A" — đã chặn).
 - Danh sách model OpenRouter free được lấy từ thực tế (Apr 2026): Gemma 3/4, Nemotron, Baidu Qianfan OCR. Llama-4 free đã bị OpenRouter gỡ — không còn dùng được.
 
+### Cooldown & Throttling (server/aiProviders.ts)
+Server giữ một map in-memory theo `(providerId + 12 ký tự đầu của apiKey)` ghi nhận sức khoẻ provider:
+- **Reactive cooldown**: khi provider trả 429/5xx, đọc header `Retry-After` (giây hoặc HTTP-date, cap 1s–5min). Lưu cooldown để các request sau **bỏ qua provider này** đến khi hết hạn. AUTH (401/403) cooldown 5 phút (key sai).
+- **Proactive RPM throttle**: mỗi provider có hint `freeRpm` (Gemini 15, Groq 30, OpenRouter 20, Mistral 60). Trước mỗi call, đếm số request trong cửa sổ 60s — nếu đã bằng `freeRpm` → bỏ qua provider, đợi đến khi slot cũ nhất hết hạn.
+- Nếu **toàn bộ chain** bị bỏ qua → vẫn thử nguyên chain (an toàn hơn là từ chối hoàn toàn).
+- Response trả thêm `skipped[]` cho frontend hiển thị "Đang nghỉ: X còn 45s".
+- Helpers: `checkAvailability`, `recordRequest`, `setCooldown`, `clearCooldown` (gọi sau khi success để xoá cooldown cũ).
+
 ## File chính
 - `server/aiProviders.ts` — registry & adapters (Gemini direct + OpenAI-compatible cho Groq/OpenRouter/Mistral)
 - `server/index.ts` — endpoints `/api/analyze-image`, `/api/providers`, `/api/test-provider`, ngoài ra accounts & share links

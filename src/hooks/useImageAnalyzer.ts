@@ -122,17 +122,29 @@ export function useImageAnalyzer(
 
         if (data?.providerUsed) {
           setProcessingState(prev => ({ ...prev, providerUsed: data.providerUsed }));
-          if (Array.isArray(data.failovers) && data.failovers.length > 0) {
-            const failedNames = data.failovers
+          const failovers = Array.isArray(data.failovers) ? data.failovers : [];
+          const skipped = Array.isArray(data.skipped) ? data.skipped : [];
+          if (failovers.length > 0 || skipped.length > 0) {
+            const usedLabel = `${data.providerUsed.label}${data.providerUsed.keyLabel ? ` (${data.providerUsed.keyLabel})` : ''}`;
+            const failedNames = failovers
               .map((a: any) => `${a.label}${a.keyLabel ? ` (${a.keyLabel})` : ''}`)
               .join(', ');
-            toast.info(
-              `Đã chuyển sang ${data.providerUsed.label}${data.providerUsed.keyLabel ? ` (${data.providerUsed.keyLabel})` : ''}`,
-              {
-                description: `Provider lỗi: ${failedNames}`,
-                duration: 4500,
-              }
-            );
+            const skippedNames = skipped
+              .map((a: any) => {
+                const wait = a.retryAfterMs ? ` còn ${Math.ceil(a.retryAfterMs / 1000)}s` : '';
+                return `${a.label}${a.keyLabel ? ` (${a.keyLabel})` : ''}${wait}`;
+              })
+              .join(', ');
+            const description = [
+              failovers.length > 0 ? `Lỗi: ${failedNames}` : '',
+              skipped.length > 0 ? `Đang nghỉ: ${skippedNames}` : '',
+            ]
+              .filter(Boolean)
+              .join(' · ');
+            toast.info(`Đang dùng ${usedLabel}`, {
+              description,
+              duration: 4500,
+            });
           }
         }
 
