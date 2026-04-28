@@ -39,7 +39,29 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
   const [previewLoading, setPreviewLoading] = useState(false);
   const [imageTimeSort, setImageTimeSort] = useState<'none' | 'desc' | 'asc'>('none');
   const [folderFilter, setFolderFilter] = useState<string>('__all__');
+  const [markedIds, setMarkedIds] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem('marked_account_ids');
+      if (!raw) return new Set();
+      const arr = JSON.parse(raw);
+      return new Set(Array.isArray(arr) ? arr : []);
+    } catch {
+      return new Set();
+    }
+  });
   const { referralCode: configuredReferral } = useReferralConfig();
+
+  const toggleMarked = (id: string) => {
+    setMarkedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      try {
+        localStorage.setItem('marked_account_ids', JSON.stringify(Array.from(next)));
+      } catch {}
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!previewAccount) {
@@ -293,7 +315,32 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
                     {editingId === account.id ? (
                       <Input value={editAccount} onChange={(e) => setEditAccount(e.target.value)} className="h-8" />
                     ) : (
-                      account.account_number
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleMarked(account.id)}
+                          className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                            markedIds.has(account.id)
+                              ? 'bg-primary border-primary text-primary-foreground'
+                              : 'border-muted-foreground/40 hover:border-primary hover:bg-primary/10'
+                          }`}
+                          title={markedIds.has(account.id) ? 'Bỏ đánh dấu' : 'Đánh dấu'}
+                          data-testid={`button-mark-${account.id}`}
+                          aria-pressed={markedIds.has(account.id)}
+                        >
+                          {markedIds.has(account.id) && <Check className="w-3.5 h-3.5" strokeWidth={3} />}
+                        </button>
+                        <span
+                          className={
+                            markedIds.has(account.id)
+                              ? 'font-bold text-black dark:text-white'
+                              : ''
+                          }
+                          data-testid={`text-account-number-${account.id}`}
+                        >
+                          {account.account_number}
+                        </span>
+                      </div>
                     )}
                   </TableCell>
                   <TableCell className="font-mono">
