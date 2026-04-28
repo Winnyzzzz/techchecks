@@ -38,7 +38,7 @@ app.get("/api/accounts/:deviceId", async (req, res) => {
 
 app.post("/api/accounts", async (req, res) => {
   try {
-    const { deviceId, fullName, accountNumber, referralCode, senderName, imageTime } = req.body;
+    const { deviceId, fullName, accountNumber, referralCode, senderName, imageTime, folder } = req.body;
     if (!deviceId || !fullName || !accountNumber) {
       return res.status(400).json({ error: "Missing required fields" });
     }
@@ -52,6 +52,7 @@ app.post("/api/accounts", async (req, res) => {
         sender_name: senderName || "",
         status: "verified",
         image_time: imageTime || "",
+        folder: (folder || "").trim(),
       })
       .returning();
     res.json(account);

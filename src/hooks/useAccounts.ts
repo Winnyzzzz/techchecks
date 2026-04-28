@@ -1,9 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ExtractedAccount, AIExtractionResult } from '@/types/account';
 import { toast } from 'sonner';
 import { deleteImage, clearAllImages } from '@/lib/imageStorage';
+import { useActiveFolder } from '@/hooks/useActiveFolder';
 
 export function useAccounts(deviceId: string) {
+  const { activeFolder, addFolder } = useActiveFolder();
+  const activeFolderRef = useRef(activeFolder);
+  useEffect(() => { activeFolderRef.current = activeFolder; }, [activeFolder]);
   const [accounts, setAccounts] = useState<ExtractedAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -39,17 +43,20 @@ export function useAccounts(deviceId: string) {
           referralCode: result.referralCode || '',
           senderName: result.senderName || result.fullName || '',
           imageTime: result.imageTime || '',
+          folder: activeFolderRef.current || '',
         }),
       });
       if (!res.ok) throw new Error('Failed to add');
       const data = await res.json() as ExtractedAccount;
       setAccounts(prev => [data, ...prev]);
+      // Remember folder name in known folders list when an account is created with one
+      if (data.folder) addFolder(data.folder);
       return data;
     } catch (error) {
       console.error('Error adding account:', error);
       return null;
     }
-  }, [deviceId]);
+  }, [deviceId, addFolder]);
 
   const updateAccount = useCallback(async (id: string, fullName: string, accountNumber: string, referralCode: string, senderName: string) => {
     try {

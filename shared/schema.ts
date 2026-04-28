@@ -10,6 +10,7 @@ export const extractedAccounts = pgTable("extracted_accounts", {
   sender_name: text("sender_name").notNull().default(""),
   status: text("status").notNull().default("pending"),
   image_time: text("image_time").notNull().default(""),
+  folder: text("folder").notNull().default(""),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

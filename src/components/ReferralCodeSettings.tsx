@@ -3,6 +3,7 @@ import { Settings, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
   DialogContent,
@@ -16,7 +17,14 @@ import { toast } from 'sonner';
 import { useReferralConfig } from '@/hooks/useReferralConfig';
 
 export function ReferralCodeSettings() {
-  const { referralCode, setReferralCode, resetReferralCode, defaultReferralCode } = useReferralConfig();
+  const {
+    referralCode,
+    setReferralCode,
+    resetReferralCode,
+    defaultReferralCode,
+    warningEnabled,
+    setWarningEnabled,
+  } = useReferralConfig();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(referralCode);
 
@@ -82,6 +90,23 @@ export function ReferralCodeSettings() {
                 (mặc định: <span className="font-mono">{defaultReferralCode}</span>)
               </span>
             )}
+          </div>
+
+          <div className="flex items-start justify-between gap-3 pt-3 border-t">
+            <div className="flex-1">
+              <Label htmlFor="warn-toggle" className="cursor-pointer">
+                Bật cảnh báo mã giới thiệu
+              </Label>
+              <p className="text-xs text-muted-foreground mt-1">
+                Khi bật, hệ thống sẽ hiển thị banner cảnh báo cho các tài khoản có mã sai hoặc thiếu mã.
+              </p>
+            </div>
+            <Switch
+              id="warn-toggle"
+              checked={warningEnabled}
+              onCheckedChange={setWarningEnabled}
+              data-testid="switch-referral-warning"
+            />
           </div>
         </div>
         <DialogFooter className="gap-2 sm:gap-2">

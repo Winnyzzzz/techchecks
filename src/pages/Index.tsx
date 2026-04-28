@@ -10,6 +10,7 @@ import { AddAccountButton } from '@/components/AddAccountButton';
 import { FailedImagesList } from '@/components/FailedImagesList';
 import { ShareButton } from '@/components/ShareButton';
 import { ReferralCodeSettings } from '@/components/ReferralCodeSettings';
+import { FolderManager } from '@/components/FolderManager';
 import { useDeviceId } from '@/hooks/useDeviceId';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useImageAnalyzer } from '@/hooks/useImageAnalyzer';
@@ -24,7 +25,7 @@ const Index = () => {
   const { shareCode, isGenerating, generateShareLink, getDeviceIdFromCode } = useShareLink(deviceId);
   const [isLoadingShared, setIsLoadingShared] = useState(false);
 
-  const { referralCode: CORRECT_REFERRAL } = useReferralConfig();
+  const { referralCode: CORRECT_REFERRAL, warningEnabled: referralWarningEnabled } = useReferralConfig();
   const referralStats = useMemo(() => {
     const missingList: typeof accounts = [];
     const wrongList: typeof accounts = [];
@@ -78,7 +79,8 @@ const Index = () => {
               Tải ảnh lên
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
+            <FolderManager accounts={accounts} />
             <ImageUploader 
               onImagesSelected={analyzeImages} 
               isProcessing={processingState.isProcessing} 
@@ -96,7 +98,7 @@ const Index = () => {
         )}
 
         {/* Referral code warning */}
-        {referralStats.total > 0 && (
+        {referralWarningEnabled && referralStats.total > 0 && (
           <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-900 rounded-lg p-3 flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
             <div className="text-sm text-amber-900 dark:text-amber-200">

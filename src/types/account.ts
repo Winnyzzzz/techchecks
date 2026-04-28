@@ -7,6 +7,7 @@ export interface ExtractedAccount {
   sender_name: string;
   status: 'pending' | 'verified' | 'error';
   image_time: string;
+  folder: string;
   created_at: string;
   updated_at: string;
 }

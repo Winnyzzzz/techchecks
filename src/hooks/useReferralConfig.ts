@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 const STORAGE_KEY = 'referral_code_setting';
+const WARN_KEY = 'referral_warning_enabled';
 const DEFAULT_REFERRAL = 'PAPER202214';
 
 const sanitize = (s: string) => s.trim().toUpperCase().replace(/\s+/g, '');
@@ -15,10 +16,22 @@ export function useReferralConfig() {
     }
   });
 
+  const [warningEnabled, setWarningEnabledState] = useState<boolean>(() => {
+    try {
+      const v = localStorage.getItem(WARN_KEY);
+      return v === null ? true : v === 'true';
+    } catch {
+      return true;
+    }
+  });
+
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY && e.newValue) {
         setReferralCodeState(sanitize(e.newValue));
+      }
+      if (e.key === WARN_KEY) {
+        setWarningEnabledState(e.newValue === 'true');
       }
     };
     window.addEventListener('storage', onStorage);
@@ -37,5 +50,17 @@ export function useReferralConfig() {
     setReferralCodeState(DEFAULT_REFERRAL);
   }, []);
 
-  return { referralCode, setReferralCode, resetReferralCode, defaultReferralCode: DEFAULT_REFERRAL };
+  const setWarningEnabled = useCallback((enabled: boolean) => {
+    localStorage.setItem(WARN_KEY, enabled ? 'true' : 'false');
+    setWarningEnabledState(enabled);
+  }, []);
+
+  return {
+    referralCode,
+    setReferralCode,
+    resetReferralCode,
+    defaultReferralCode: DEFAULT_REFERRAL,
+    warningEnabled,
+    setWarningEnabled,
+  };
 }

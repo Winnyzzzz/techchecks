@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Pencil, Trash2, Check, X, Search, BadgeCheck, Image as ImageIcon, ArrowUp, ArrowDown } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getImage } from '@/lib/imageStorage';
 import {
   Table,
@@ -37,6 +38,7 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [imageTimeSort, setImageTimeSort] = useState<'none' | 'desc' | 'asc'>('none');
+  const [folderFilter, setFolderFilter] = useState<string>('__all__');
   const { referralCode: configuredReferral } = useReferralConfig();
 
   useEffect(() => {
@@ -80,11 +82,33 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
     }
   };
 
-  const filteredAccounts = accounts.filter(account =>
-    account.account_number.includes(searchTerm) ||
-    account.referral_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    account.sender_name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Distinct folders present in current accounts (for filter dropdown)
+  const folderOptions = (() => {
+    const set = new Set<string>();
+    let hasUnclassified = false;
+    accounts.forEach(a => {
+      const f = (a.folder || '').trim();
+      if (f) set.add(f);
+      else hasUnclassified = true;
+    });
+    return {
+      list: Array.from(set).sort((a, b) => a.localeCompare(b, 'vi')),
+      hasUnclassified,
+    };
+  })();
+
+  const filteredAccounts = accounts.filter(account => {
+    const matchesSearch =
+      account.account_number.includes(searchTerm) ||
+      account.referral_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      account.sender_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (account.folder || '').toLowerCase().includes(searchTerm.toLowerCase());
+
+    if (!matchesSearch) return false;
+    if (folderFilter === '__all__') return true;
+    if (folderFilter === '__none__') return !(account.folder || '').trim();
+    return (account.folder || '').trim() === folderFilter;
+  });
 
   // Parse "HH:MM" (also handles "H:MM AM/PM") into total minutes; returns -1 if invalid
   const parseImageTime = (s: string): number => {
@@ -188,14 +212,30 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
 
   return (
     <div className="space-y-4">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          placeholder="Tìm kiếm theo tên, số tài khoản, mã giới thiệu hoặc họ tên..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10"
-        />
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[240px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Tìm kiếm theo tên, STK, mã giới thiệu, thư mục, họ tên..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <Select value={folderFilter} onValueChange={setFolderFilter}>
+          <SelectTrigger className="w-56" data-testid="select-folder-filter">
+            <SelectValue placeholder="Lọc theo thư mục" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">Tất cả thư mục ({accounts.length})</SelectItem>
+            {folderOptions.hasUnclassified && (
+              <SelectItem value="__none__">(Chưa phân loại)</SelectItem>
+            )}
+            {folderOptions.list.map(f => (
+              <SelectItem key={f} value={f}>{f}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="border rounded-lg overflow-hidden">
@@ -206,6 +246,7 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
               <TableHead>Số tài khoản</TableHead>
               <TableHead>Mã giới thiệu</TableHead>
               <TableHead>Họ và tên (Nội dung)</TableHead>
+              <TableHead className="w-32">Thư mục</TableHead>
               <TableHead className="w-40">Thời gian quét</TableHead>
               <TableHead className="w-32">
                 <button
@@ -237,7 +278,7 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
           <TableBody>
             {sortedAccounts.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                   {searchTerm ? 'Không tìm thấy kết quả' : 'Chưa có dữ liệu. Tải ảnh lên để bắt đầu.'}
                 </TableCell>
               </TableRow>
@@ -293,6 +334,20 @@ export function AccountTable({ accounts, onUpdate, onDelete }: AccountTableProps
                       >
                         {account.sender_name || '—'}
                       </div>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {account.folder ? (
+                      <Badge
+                        variant="outline"
+                        className="text-xs max-w-[120px] truncate inline-block"
+                        title={account.folder}
+                        data-testid={`badge-folder-${account.id}`}
+                      >
+                        {account.folder}
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground italic">Chưa phân loại</span>
                     )}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
