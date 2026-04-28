@@ -20,9 +20,9 @@ fullName, accountNumber, referralCode, senderName, imageTime.
 
 ## Multi-AI Provider Failover (Task #1)
 - Người dùng có thể thêm nhiều API key (Gemini, Groq, OpenRouter, Mistral) trong dialog "AI Providers".
-- Mỗi entry có: provider, key, model, nhãn tuỳ ý, công tắc bật/tắt, nút kiểm tra (Test), reorder bằng mũi tên.
+- Mỗi entry có: provider, key, model, nhãn tuỳ ý, công tắc bật/tắt, nút kiểm tra (Test). Sắp xếp ưu tiên bằng **kéo-thả** (`@dnd-kit/sortable`, `PointerSensor` + `KeyboardSensor` cho a11y).
 - Cấu hình lưu ở `localStorage` key `ai_providers_config`, sync qua custom event `ai-providers-changed`.
-- Backend `POST /api/analyze-image` nhận body `{ imageBase64, providers: [{providerId, apiKey, model, keyLabel?}] }` và thử lần lượt theo thứ tự. Tự chuyển sang provider tiếp theo khi gặp `RATE_LIMIT | TIMEOUT | SERVER_ERROR | AUTH | EMPTY | UNKNOWN`. Dừng (trả 400) khi gặp `BAD_REQUEST` (lỗi đầu vào).
+- Backend `POST /api/analyze-image` nhận body `{ imageBase64, providers: [{providerId, apiKey, model, keyLabel?}] }` và thử lần lượt theo thứ tự. **Failover policy: chuyển sang provider tiếp theo trên MỌI mã lỗi** (`RATE_LIMIT | TIMEOUT | SERVER_ERROR | AUTH | BAD_REQUEST | EMPTY | UNKNOWN`). Mục đích: 1 key sai/1 model trả 400 không chặn cả chuỗi. Chỉ khi tất cả provider đều fail mới trả lỗi tổng hợp (HTTP 429 nếu phần lớn là rate-limit, 504 nếu timeout, 502 cho các trường hợp khác).
 - Trả thêm `providerUsed` và `failovers[]` để frontend hiển thị badge và toast "Đã chuyển sang ...".
 - Khi không có provider nào (chuỗi rỗng), fallback dùng env-based Gemini (`AI_INTEGRATIONS_GEMINI_API_KEY` + proxy `AI_INTEGRATIONS_GEMINI_BASE_URL`). Vì SDK `@google/genai` bỏ qua `httpOptions.baseUrl` khi có apiKey constructor → adapter dùng direct fetch khi `baseUrl` được truyền.
 - Endpoint phụ: `GET /api/providers` (metadata cho UI), `POST /api/test-provider` (probe ảnh 1×1).
