@@ -92,21 +92,28 @@ export function useAIProviders() {
     [persist],
   );
 
-  const moveProvider = useCallback(
-    (id: string, direction: -1 | 1) => {
-      const list = load();
-      const i = list.findIndex((p) => p.id === id);
-      if (i < 0) return;
-      const j = i + direction;
-      if (j < 0 || j >= list.length) return;
-      const next = [...list];
-      [next[i], next[j]] = [next[j], next[i]];
+  const reorderProviders = useCallback(
+    (next: ProviderConfig[]) => {
+      // Validate that all ids match the current set; otherwise ignore.
+      const current = load();
+      if (
+        next.length !== current.length ||
+        !next.every((p) => current.some((c) => c.id === p.id))
+      ) {
+        return;
+      }
       persist(next);
     },
     [persist],
   );
 
-  return { providers, addProvider, updateProvider, removeProvider, moveProvider };
+  return {
+    providers,
+    addProvider,
+    updateProvider,
+    removeProvider,
+    reorderProviders,
+  };
 }
 
 export function getActiveProviderConfigs(): ProviderConfig[] {
