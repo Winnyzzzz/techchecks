@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 
 const ACTIVE_KEY = 'active_folder';
 const FOLDERS_KEY = 'known_folders';
+const ACTIVE_EVENT = 'active-folder-changed';
+const FOLDERS_EVENT = 'known-folders-changed';
 
 const loadFolders = (): string[] => {
   try {
@@ -20,6 +22,24 @@ const saveFolders = (list: string[]) => {
   } catch {
     // ignore
   }
+  try {
+    window.dispatchEvent(new CustomEvent(FOLDERS_EVENT));
+  } catch {
+    // ignore
+  }
+};
+
+const writeActive = (cleaned: string) => {
+  try {
+    localStorage.setItem(ACTIVE_KEY, cleaned);
+  } catch {
+    // ignore
+  }
+  try {
+    window.dispatchEvent(new CustomEvent(ACTIVE_EVENT, { detail: cleaned }));
+  } catch {
+    // ignore
+  }
 };
 
 export function useActiveFolder() {
@@ -32,22 +52,31 @@ export function useActiveFolder() {
   });
   const [folders, setFoldersState] = useState<string[]>(() => loadFolders());
 
+  // Sync across all hook instances in the same tab + across tabs.
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key === ACTIVE_KEY) setActiveFolderState(e.newValue || '');
       if (e.key === FOLDERS_KEY) setFoldersState(loadFolders());
     };
+    const onActiveChanged = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail;
+      setActiveFolderState(typeof detail === 'string' ? detail : (localStorage.getItem(ACTIVE_KEY) || ''));
+    };
+    const onFoldersChanged = () => setFoldersState(loadFolders());
+
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    window.addEventListener(ACTIVE_EVENT, onActiveChanged as EventListener);
+    window.addEventListener(FOLDERS_EVENT, onFoldersChanged);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener(ACTIVE_EVENT, onActiveChanged as EventListener);
+      window.removeEventListener(FOLDERS_EVENT, onFoldersChanged);
+    };
   }, []);
 
   const setActiveFolder = useCallback((name: string) => {
     const cleaned = name.trim();
-    try {
-      localStorage.setItem(ACTIVE_KEY, cleaned);
-    } catch {
-      // ignore
-    }
+    writeActive(cleaned);
     setActiveFolderState(cleaned);
   }, []);
 
@@ -69,13 +98,13 @@ export function useActiveFolder() {
       saveFolders(next);
       return next;
     });
-    setActiveFolderState(prev => (prev === name ? '' : prev));
-    try {
-      const cur = localStorage.getItem(ACTIVE_KEY);
-      if (cur === name) localStorage.setItem(ACTIVE_KEY, '');
-    } catch {
-      // ignore
-    }
+    setActiveFolderState(prev => {
+      if (prev === name) {
+        writeActive('');
+        return '';
+      }
+      return prev;
+    });
   }, []);
 
   return { activeFolder, setActiveFolder, folders, addFolder, removeFolder };
