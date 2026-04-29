@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 export const extractedAccounts = pgTable("extracted_accounts", {
   id: text("id").primaryKey().default(sql`gen_random_uuid()`),
   device_id: text("device_id").notNull(),
+  dataset: text("dataset").notNull().default("default"),
   full_name: text("full_name").notNull(),
   account_number: text("account_number").notNull(),
   referral_code: text("referral_code").notNull().default(""),

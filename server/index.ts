@@ -4,7 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { db } from "./db.js";
 import { extractedAccounts } from "../shared/schema.js";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import {
   PROVIDERS,
   PROVIDER_PUBLIC_INFO,
@@ -21,13 +21,24 @@ app.use(express.json({ limit: "20mb" }));
 
 const PORT = process.env.PORT || 3000;
 
+const cleanDataset = (v: unknown): string => {
+  const s = typeof v === "string" ? v.trim() : "";
+  return s || "default";
+};
+
 app.get("/api/accounts/:deviceId", async (req, res) => {
   try {
     const { deviceId } = req.params;
+    const dataset = cleanDataset(req.query.dataset);
     const accounts = await db
       .select()
       .from(extractedAccounts)
-      .where(eq(extractedAccounts.device_id, deviceId))
+      .where(
+        and(
+          eq(extractedAccounts.device_id, deviceId),
+          eq(extractedAccounts.dataset, dataset),
+        ),
+      )
       .orderBy(desc(extractedAccounts.created_at));
     res.json(accounts);
   } catch (error) {
@@ -38,7 +49,7 @@ app.get("/api/accounts/:deviceId", async (req, res) => {
 
 app.post("/api/accounts", async (req, res) => {
   try {
-    const { deviceId, fullName, accountNumber, referralCode, senderName, imageTime, folder } = req.body;
+    const { deviceId, dataset, fullName, accountNumber, referralCode, senderName, imageTime, folder } = req.body;
     if (!deviceId || !fullName || !accountNumber) {
       return res.status(400).json({ error: "Missing required fields" });
     }
@@ -46,6 +57,7 @@ app.post("/api/accounts", async (req, res) => {
       .insert(extractedAccounts)
       .values({
         device_id: deviceId,
+        dataset: cleanDataset(dataset),
         full_name: fullName,
         account_number: String(accountNumber).replace(/\s/g, ""),
         referral_code: referralCode || "",
@@ -98,11 +110,64 @@ app.delete("/api/accounts/:id", async (req, res) => {
 app.delete("/api/accounts/device/:deviceId", async (req, res) => {
   try {
     const { deviceId } = req.params;
-    await db.delete(extractedAccounts).where(eq(extractedAccounts.device_id, deviceId));
+    const dataset = cleanDataset(req.query.dataset);
+    await db
+      .delete(extractedAccounts)
+      .where(
+        and(
+          eq(extractedAccounts.device_id, deviceId),
+          eq(extractedAccounts.dataset, dataset),
+        ),
+      );
     res.json({ success: true });
   } catch (error) {
     console.error("Error clearing accounts:", error);
     res.status(500).json({ error: "Failed to clear accounts" });
+  }
+});
+
+// Distinct dataset names that have at least 1 account on this device
+app.get("/api/datasets/:deviceId", async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    const rows = await db
+      .selectDistinct({ dataset: extractedAccounts.dataset })
+      .from(extractedAccounts)
+      .where(eq(extractedAccounts.device_id, deviceId));
+    res.json(rows.map(r => r.dataset).filter(Boolean));
+  } catch (error) {
+    console.error("Error listing datasets:", error);
+    res.status(500).json({ error: "Failed to list datasets" });
+  }
+});
+
+// Rename or merge a dataset for a device (moves all rows from `from` -> `to`)
+app.patch("/api/datasets/:deviceId", async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    const rawFrom = typeof req.body?.from === "string" ? req.body.from.trim() : "";
+    const rawTo = typeof req.body?.to === "string" ? req.body.to.trim() : "";
+    if (!rawFrom || !rawTo) {
+      return res.status(400).json({ error: "from/to bắt buộc và không được rỗng" });
+    }
+    if (rawFrom === "default") {
+      return res.status(400).json({ error: 'Không thể đổi tên tập "default"' });
+    }
+    if (rawFrom === rawTo) return res.json({ success: true, moved: 0 });
+    const moved = await db
+      .update(extractedAccounts)
+      .set({ dataset: rawTo, updated_at: new Date() })
+      .where(
+        and(
+          eq(extractedAccounts.device_id, deviceId),
+          eq(extractedAccounts.dataset, rawFrom),
+        ),
+      )
+      .returning({ id: extractedAccounts.id });
+    res.json({ success: true, moved: moved.length });
+  } catch (error) {
+    console.error("Error renaming dataset:", error);
+    res.status(500).json({ error: "Failed to rename dataset" });
   }
 });
 

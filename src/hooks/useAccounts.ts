@@ -1,37 +1,58 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ExtractedAccount, AIExtractionResult } from '@/types/account';
 import { toast } from 'sonner';
-import { deleteImage, clearAllImages } from '@/lib/imageStorage';
+import { deleteImage } from '@/lib/imageStorage';
 import { useActiveFolder } from '@/hooks/useActiveFolder';
 
-export function useAccounts(deviceId: string) {
-  const { activeFolder, addFolder } = useActiveFolder();
+export function useAccounts(deviceId: string, dataset: string) {
+  const folderScope = deviceId && dataset ? `${deviceId}:${dataset}` : '';
+  const { activeFolder, addFolder } = useActiveFolder(folderScope);
   const activeFolderRef = useRef(activeFolder);
   useEffect(() => { activeFolderRef.current = activeFolder; }, [activeFolder]);
   const [accounts, setAccounts] = useState<ExtractedAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchAccounts = useCallback(async () => {
-    if (!deviceId) return;
-    try {
-      const res = await fetch(`/api/accounts/${deviceId}`);
-      if (!res.ok) throw new Error('Failed to fetch');
-      const data = await res.json();
-      setAccounts(data as ExtractedAccount[]);
-    } catch (error) {
-      console.error('Error fetching accounts:', error);
-      toast.error('Không thể tải danh sách');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [deviceId]);
-
+  // Reset list immediately when scope changes so the user never sees the
+  // previous dataset's rows briefly.
   useEffect(() => {
-    fetchAccounts();
-  }, [fetchAccounts]);
+    setAccounts([]);
+    setIsLoading(true);
+  }, [deviceId, dataset]);
+
+  // Fetch with an AbortController + version guard so a slow request from a
+  // previous (deviceId, dataset) can't overwrite the current selection.
+  useEffect(() => {
+    if (!deviceId || !dataset) {
+      setIsLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/accounts/${deviceId}?dataset=${encodeURIComponent(dataset)}`,
+          { signal: controller.signal },
+        );
+        if (!res.ok) throw new Error('Failed to fetch');
+        const data = await res.json();
+        if (!cancelled) setAccounts(data as ExtractedAccount[]);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        console.error('Error fetching accounts:', error);
+        toast.error('Không thể tải danh sách');
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [deviceId, dataset]);
 
   const addAccount = useCallback(async (result: AIExtractionResult): Promise<ExtractedAccount | null> => {
-    if (!deviceId) return null;
+    if (!deviceId || !dataset) return null;
     try {
       const folder = activeFolderRef.current || '';
       const res = await fetch('/api/accounts', {
@@ -39,6 +60,7 @@ export function useAccounts(deviceId: string) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           deviceId,
+          dataset,
           fullName: result.fullName,
           accountNumber: result.accountNumber.replace(/\s/g, ''),
           referralCode: result.referralCode || '',
@@ -57,7 +79,7 @@ export function useAccounts(deviceId: string) {
       console.error('Error adding account:', error);
       return null;
     }
-  }, [deviceId, addFolder]);
+  }, [deviceId, dataset, addFolder]);
 
   const updateAccount = useCallback(async (id: string, fullName: string, accountNumber: string, referralCode: string, senderName: string) => {
     try {
@@ -91,18 +113,23 @@ export function useAccounts(deviceId: string) {
   }, []);
 
   const clearAllAccounts = useCallback(async () => {
-    if (!deviceId) return;
+    if (!deviceId || !dataset) return;
     try {
-      const res = await fetch(`/api/accounts/device/${deviceId}`, { method: 'DELETE' });
+      const res = await fetch(
+        `/api/accounts/device/${deviceId}?dataset=${encodeURIComponent(dataset)}`,
+        { method: 'DELETE' },
+      );
       if (!res.ok) throw new Error('Failed to clear');
+      // Best-effort: drop original images only for accounts in the cleared dataset.
+      // (Other datasets on this device still own their images in IndexedDB.)
+      accounts.forEach(a => { try { deleteImage(a.id); } catch { /* ignore */ } });
       setAccounts([]);
-      clearAllImages();
-      toast.success('Đã xóa tất cả');
+      toast.success('Đã xóa tất cả trong tập này');
     } catch (error) {
       console.error('Error clearing accounts:', error);
       toast.error('Không thể xóa');
     }
-  }, [deviceId]);
+  }, [deviceId, dataset, accounts]);
 
   return {
     accounts,

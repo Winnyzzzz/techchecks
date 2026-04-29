@@ -25,12 +25,13 @@ import { toast } from 'sonner';
 
 interface FolderManagerProps {
   accounts: ExtractedAccount[];
+  scope?: string;
 }
 
 const NONE_VALUE = '__none__';
 
-export function FolderManager({ accounts }: FolderManagerProps) {
-  const { activeFolder, setActiveFolder, folders, addFolder, removeFolder } = useActiveFolder();
+export function FolderManager({ accounts, scope = '' }: FolderManagerProps) {
+  const { activeFolder, setActiveFolder, folders, addFolder, removeFolder } = useActiveFolder(scope);
   const [open, setOpen] = useState(false);
   const [draftName, setDraftName] = useState('');
 

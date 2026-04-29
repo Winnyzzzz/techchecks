@@ -11,14 +11,25 @@ import { FailedImagesList } from '@/components/FailedImagesList';
 import { ReferralCodeSettings } from '@/components/ReferralCodeSettings';
 import { AIProviderSettings } from '@/components/AIProviderSettings';
 import { FolderManager } from '@/components/FolderManager';
+import { DatasetSwitcher } from '@/components/DatasetSwitcher';
 import { useDeviceId } from '@/hooks/useDeviceId';
+import { useDatasets } from '@/hooks/useDatasets';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useImageAnalyzer } from '@/hooks/useImageAnalyzer';
 import { useReferralConfig } from '@/hooks/useReferralConfig';
 
 const Index = () => {
   const { deviceId } = useDeviceId();
-  const { accounts, isLoading, addAccount, updateAccount, deleteAccount, clearAllAccounts } = useAccounts(deviceId);
+  const {
+    datasets,
+    currentDataset,
+    setCurrentDataset,
+    addDataset,
+    renameDataset,
+    removeDataset,
+  } = useDatasets(deviceId);
+  const folderScope = deviceId && currentDataset ? `${deviceId}:${currentDataset}` : '';
+  const { accounts, isLoading, addAccount, updateAccount, deleteAccount, clearAllAccounts } = useAccounts(deviceId, currentDataset);
   const { processingState, analyzeImages, failedImages, removeFailedImage, clearFailedImages } = useImageAnalyzer(addAccount, accounts);
 
   const { referralCode: CORRECT_REFERRAL, warningEnabled: referralWarningEnabled } = useReferralConfig();
@@ -54,10 +65,18 @@ const Index = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <FolderManager accounts={accounts} />
-            <ImageUploader 
-              onImagesSelected={analyzeImages} 
-              isProcessing={processingState.isProcessing} 
+            <DatasetSwitcher
+              datasets={datasets}
+              currentDataset={currentDataset}
+              onChangeCurrent={setCurrentDataset}
+              onAdd={addDataset}
+              onRename={renameDataset}
+              onRemove={removeDataset}
+            />
+            <FolderManager accounts={accounts} scope={folderScope} />
+            <ImageUploader
+              onImagesSelected={analyzeImages}
+              isProcessing={processingState.isProcessing}
             />
           </CardContent>
         </Card>
@@ -141,7 +160,12 @@ const Index = () => {
         <Card>
           <CardHeader>
             <CardTitle className="flex flex-wrap items-center justify-between gap-2">
-              <span>Danh sách tài khoản ({accounts.length})</span>
+              <span>
+                Danh sách tài khoản ({accounts.length})
+                <span className="ml-2 text-sm font-normal text-muted-foreground" data-testid="text-current-dataset">
+                  · tập <strong>{currentDataset}</strong>
+                </span>
+              </span>
               <div className="flex flex-wrap items-center gap-2">
                 <AIProviderSettings />
                 <ReferralCodeSettings />
