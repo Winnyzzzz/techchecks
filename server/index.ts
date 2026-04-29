@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { db } from "./db.js";
-import { extractedAccounts, shareLinks } from "../shared/schema.js";
+import { extractedAccounts } from "../shared/schema.js";
 import { eq, desc } from "drizzle-orm";
 import {
   PROVIDERS,
@@ -106,66 +106,6 @@ app.delete("/api/accounts/device/:deviceId", async (req, res) => {
   }
 });
 
-app.get("/api/share-links/:deviceId", async (req, res) => {
-  try {
-    const { deviceId } = req.params;
-    const [link] = await db
-      .select()
-      .from(shareLinks)
-      .where(eq(shareLinks.device_id, deviceId));
-    res.json(link || null);
-  } catch (error) {
-    console.error("Error fetching share link:", error);
-    res.status(500).json({ error: "Failed to fetch share link" });
-  }
-});
-
-app.post("/api/share-links", async (req, res) => {
-  try {
-    const { deviceId, shareCode } = req.body;
-    if (!deviceId || !shareCode) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
-    const [link] = await db
-      .insert(shareLinks)
-      .values({ device_id: deviceId, share_code: shareCode })
-      .returning();
-    res.json(link);
-  } catch (error: any) {
-    if (error?.code === "23505") {
-      // Detect whether duplicate is on share_code (retryable) or device_id
-      const detail = String(error?.detail || "");
-      const isDeviceDup = detail.includes("device_id");
-      if (isDeviceDup) {
-        // Return existing link for this device
-        const [existing] = await db
-          .select()
-          .from(shareLinks)
-          .where(eq(shareLinks.device_id, req.body.deviceId));
-        if (existing) return res.json(existing);
-      }
-      res.status(409).json({ error: "Duplicate share code", code: "23505" });
-    } else {
-      console.error("Error creating share link:", error);
-      res.status(500).json({ error: "Failed to create share link" });
-    }
-  }
-});
-
-app.get("/api/share-links/code/:shareCode", async (req, res) => {
-  try {
-    const { shareCode } = req.params;
-    const [link] = await db
-      .select()
-      .from(shareLinks)
-      .where(eq(shareLinks.share_code, shareCode.toUpperCase()));
-    res.json(link ? { deviceId: link.device_id } : null);
-  } catch (error) {
-    console.error("Error looking up share code:", error);
-    res.status(500).json({ error: "Failed to look up share code" });
-  }
-});
-
 app.post("/api/analyze-image", async (req, res) => {
   try {
     const { imageBase64 } = req.body;
@@ -235,19 +175,10 @@ Trả về JSON theo format:
       });
     }
 
-    if (chain.length === 0 && process.env.AI_INTEGRATIONS_GEMINI_API_KEY) {
-      chain.push({
-        providerId: "gemini",
-        apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
-        model: "gemini-2.5-flash",
-        label: "Google Gemini (mặc định)",
-        baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
-      });
-    }
-
     if (chain.length === 0) {
       return res.status(400).json({
-        error: "Chưa cấu hình API key nào. Hãy mở 'AI Providers' để thêm.",
+        error:
+          "Chưa cấu hình API key nào. Hãy mở 'AI Providers' để thêm — khuyên dùng Mistral.",
       });
     }
 

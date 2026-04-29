@@ -15,9 +15,3 @@ export const extractedAccounts = pgTable("extracted_accounts", {
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const shareLinks = pgTable("share_links", {
-  id: text("id").primaryKey().default(sql`gen_random_uuid()`),
-  device_id: text("device_id").notNull().unique(),
-  share_code: text("share_code").notNull().unique(),
-  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});

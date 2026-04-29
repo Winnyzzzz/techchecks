@@ -11,7 +11,7 @@ fullName, accountNumber, referralCode, senderName, imageTime.
 
 ## Tính năng chính
 - Upload nhiều ảnh, gọi AI trích xuất thông tin
-- Lưu theo `device_id`; share link để chia sẻ giữa thiết bị
+- Lưu theo `device_id` (mỗi trình duyệt một id, persist trong localStorage)
 - Import/Export Excel; thêm tay; lưu ảnh gốc vào IndexedDB
 - Phát hiện trùng lặp (full_name + account_number)
 - Cấu hình mã giới thiệu chuẩn + bật/tắt cảnh báo
@@ -24,7 +24,7 @@ fullName, accountNumber, referralCode, senderName, imageTime.
 - Cấu hình lưu ở `localStorage` key `ai_providers_config`, sync qua custom event `ai-providers-changed`.
 - Backend `POST /api/analyze-image` nhận body `{ imageBase64, providers: [{providerId, apiKey, model, keyLabel?}] }` và thử lần lượt theo thứ tự. **Failover policy: chuyển sang provider tiếp theo trên MỌI mã lỗi** (`RATE_LIMIT | TIMEOUT | SERVER_ERROR | AUTH | BAD_REQUEST | EMPTY | UNKNOWN`). Mục đích: 1 key sai/1 model trả 400 không chặn cả chuỗi. Chỉ khi tất cả provider đều fail mới trả lỗi tổng hợp (HTTP 429 nếu phần lớn là rate-limit, 504 nếu timeout, 502 cho các trường hợp khác).
 - Trả thêm `providerUsed` và `failovers[]` để frontend hiển thị badge và toast "Đã chuyển sang ...".
-- Khi không có provider nào (chuỗi rỗng), fallback dùng env-based Gemini (`AI_INTEGRATIONS_GEMINI_API_KEY` + proxy `AI_INTEGRATIONS_GEMINI_BASE_URL`). Vì SDK `@google/genai` bỏ qua `httpOptions.baseUrl` khi có apiKey constructor → adapter dùng direct fetch khi `baseUrl` được truyền.
+- Khi không có provider nào trong chuỗi, request `/api/analyze-image` trả 400 yêu cầu user mở "AI Providers" để thêm key (khuyên dùng Mistral). Không còn fallback env Gemini.
 - Endpoint phụ: `GET /api/providers` (metadata cho UI), `POST /api/test-provider` (probe ảnh 1×1).
 - Prompt rule #6 trong `server/index.ts` cấm AI tự thêm/bớt dấu tiếng Việt vào fullName/senderName (ví dụ Mistral hay "sửa" "NGUYEN VAN A" thành "NGUYỄN VĂN A" — đã chặn).
 - Danh sách model OpenRouter free được lấy từ thực tế (Apr 2026): Gemma 3/4, Nemotron, Baidu Qianfan OCR. Llama-4 free đã bị OpenRouter gỡ — không còn dùng được.
@@ -39,7 +39,7 @@ Server giữ một map in-memory theo `(providerId + 12 ký tự đầu của ap
 
 ## File chính
 - `server/aiProviders.ts` — registry & adapters (Gemini direct + OpenAI-compatible cho Groq/OpenRouter/Mistral)
-- `server/index.ts` — endpoints `/api/analyze-image`, `/api/providers`, `/api/test-provider`, ngoài ra accounts & share links
+- `server/index.ts` — endpoints `/api/analyze-image`, `/api/providers`, `/api/test-provider`, và CRUD `/api/accounts`
 - `src/hooks/useAIProviders.ts` — hook + helper `getActiveProviderConfigs()`
 - `src/components/AIProviderSettings.tsx` — dialog cấu hình
 - `src/hooks/useImageAnalyzer.ts` — gửi providers vào request, xử lý providerUsed & failover toast
